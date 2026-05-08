@@ -18,6 +18,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <div className="bg-indigo-600 text-white text-center text-sm py-2 px-4">
+          <span className="font-medium">Live Demo</span> — Mock data mode. 
+          <a href="https://github.com/dexinox-jash/truffle" className="underline hover:text-indigo-200 ml-1" target="_blank" rel="noopener noreferrer">
+            View source on GitHub →
+          </a>
+        </div>
         <Providers>{children}</Providers>
       </body>
     </html>
