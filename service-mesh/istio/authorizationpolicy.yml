@@ -1,0 +1,56 @@
+# Default deny-all policy
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+  namespace: production
+spec:
+  {}
+---
+# Allow ingress gateway to all services
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-ingress
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ruflo-gateway
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway"]
+---
+# Allow services to communicate within namespace
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-internal
+  namespace: production
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["production"]
+    - to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "PATCH", "DELETE"]
+---
+# Deny access to sensitive services from external
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: protect-internal-services
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ruflo-command
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notNamespaces: ["production"]

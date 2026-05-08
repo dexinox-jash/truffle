@@ -1,0 +1,457 @@
+# Project Truffle - Desktop Build Pipeline
+# Section 6.2.1: Desktop Build System
+# Tauri builds for macOS, Windows, Linux with code signing
+
+name: Build Desktop
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'canary-*'
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release Type'
+        required: true
+        default: 'canary'
+        type: choice
+        options:
+          - canary
+          - stable
+      version:
+        description: 'Version Override (e.g., 1.2.3)'
+        required: false
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: '20'
+  RUST_VERSION: '1.75'
+  # Code signing secrets (configured in GitHub)
+  # APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD
+  # APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+  # WINDOWS_CERTIFICATE, WINDOWS_CERTIFICATE_PASSWORD
+
+concurrency:
+  group: build-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # Prepare Release Metadata
+  # ============================================================================
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_type: ${{ steps.version.outputs.release_type }}
+      upload_url: ${{ steps.release.outputs.upload_url }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Determine Version
+        id: version
+        run: |
+          if [ "${{ github.event.inputs.version }}" != "" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION=$(jq -r '.version' package.json)
+          fi
+          
+          if [ "${{ github.event.inputs.release_type }}" != "" ]; then
+            RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          elif [[ "${{ github.ref }}" == refs/tags/canary-* ]]; then
+            RELEASE_TYPE="canary"
+          else
+            RELEASE_TYPE="stable"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION ($RELEASE_TYPE)"
+
+      - name: Create GitHub Release
+        id: release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          draft: true
+          prerelease: ${{ steps.version.outputs.release_type == 'canary' }}
+          generate_release_notes: true
+          name: "Truffle ${{ steps.version.outputs.release_type == 'canary' && 'Canary' || 'Stable' }} ${{ steps.version.outputs.version }}"
+
+  # ============================================================================
+  # Build macOS (Universal Binary)
+  # ============================================================================
+  build-macos:
+    name: Build macOS
+    needs: prepare
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [aarch64, x86_64]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: ${{ matrix.arch }}-apple-darwin
+
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-${{ matrix.arch }}
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Import Apple Certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          security find-identity -v -p codesigning build.keychain
+
+      - name: Build Tauri App
+        run: npm run tauri build -- --target ${{ matrix.arch }}-apple-darwin
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Notarize App
+        if: needs.prepare.outputs.release_type == 'stable'
+        run: |
+          APP_PATH=$(find src-tauri/target -name "*.app" -type d | head -1)
+          if [ -n "$APP_PATH" ]; then
+            echo "Notarizing $APP_PATH..."
+            xcrun notarytool submit "$APP_PATH" \
+              --apple-id "${{ secrets.APPLE_ID }}" \
+              --password "${{ secrets.APPLE_PASSWORD }}" \
+              --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+              --wait
+          fi
+
+      - name: Staple Notarization
+        if: needs.prepare.outputs.release_type == 'stable'
+        run: |
+          APP_PATH=$(find src-tauri/target -name "*.app" -type d | head -1)
+          if [ -n "$APP_PATH" ]; then
+            xcrun stapler staple "$APP_PATH"
+          fi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: |
+            src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/**/*.app
+            src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/**/*.tar.gz
+
+  # ============================================================================
+  # Build Windows (x64)
+  # ============================================================================
+  build-windows:
+    name: Build Windows
+    needs: prepare
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-x64
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Setup Windows Certificate
+        shell: powershell
+        run: |
+          $certBytes = [Convert]::FromBase64String("${{ secrets.WINDOWS_CERTIFICATE }}")
+          [IO.File]::WriteAllBytes("certificate.pfx", $certBytes)
+          Write-Host "Certificate imported successfully"
+
+      - name: Build Tauri App
+        shell: powershell
+        run: |
+          $env:TAURI_PRIVATE_KEY = "${{ secrets.TAURI_PRIVATE_KEY }}"
+          $env:TAURI_KEY_PASSWORD = "${{ secrets.TAURI_KEY_PASSWORD }}"
+          $env:WINDOWS_CERTIFICATE = "certificate.pfx"
+          $env:WINDOWS_CERTIFICATE_PASSWORD = "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}"
+          npm run tauri build -- --target x86_64-pc-windows-msvc
+
+      - name: Sign Windows Installer
+        shell: powershell
+        run: |
+          $msiPath = Get-ChildItem -Path "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi" -Filter "*.msi" | Select-Object -First 1
+          if ($msiPath) {
+            Write-Host "Signing $($msiPath.FullName)..."
+            & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22000.0\x64\signtool.exe" sign `
+              /f certificate.pfx `
+              /p "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}" `
+              /tr http://timestamp.digicert.com `
+              /td sha256 `
+              /fd sha256 `
+              "$($msiPath.FullName)"
+          }
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.msi
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.zip
+
+  # ============================================================================
+  # Build Linux (x64)
+  # ============================================================================
+  build-linux:
+    name: Build Linux
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        format: [deb, rpm, AppImage]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-x64
+
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            fakeroot \
+            rpm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Tauri App
+        run: npm run tauri build
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
+      - name: Generate Checksums
+        run: |
+          cd src-tauri/target/release/bundle
+          for file in $(find . -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \)); do
+            sha256sum "$file" > "$file.sha256"
+          done
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.format }}
+          path: |
+            src-tauri/target/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.rpm
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.sha256
+
+  # ============================================================================
+  # Create Universal macOS Binary
+  # ============================================================================
+  create-universal:
+    name: Create Universal Binary
+    needs: [prepare, build-macos]
+    runs-on: macos-latest
+    steps:
+      - name: Download aarch64 Build
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-aarch64
+          path: artifacts/aarch64
+
+      - name: Download x86_64 Build
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-x86_64
+          path: artifacts/x86_64
+
+      - name: Create Universal Binary
+        run: |
+          mkdir -p universal
+          
+          # Find .app bundles
+          AARCH64_APP=$(find artifacts/aarch64 -name "*.app" -type d | head -1)
+          X86_64_APP=$(find artifacts/x86_64 -name "*.app" -type d | head -1)
+          
+          if [ -n "$AARCH64_APP" ] && [ -n "$X86_64_APP" ]; then
+            # Create universal app
+            cp -R "$AARCH64_APP" universal/Truffle.app
+            
+            # Lipo the main binary
+            AARCH64_BIN="$AARCH64_APP/Contents/MacOS/Truffle"
+            X86_64_BIN="$X86_64_APP/Contents/MacOS/Truffle"
+            UNIVERSAL_BIN="universal/Truffle.app/Contents/MacOS/Truffle"
+            
+            lipo -create "$AARCH64_BIN" "$X86_64_BIN" -output "$UNIVERSAL_BIN"
+            
+            # Create universal DMG
+            npm install -g create-dmg
+            create-dmg universal/Truffle.app universal/ || true
+          fi
+
+      - name: Upload Universal Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: universal/
+
+  # ============================================================================
+  # Publish Release
+  # ============================================================================
+  publish:
+    name: Publish Release
+    needs: [prepare, build-macos, build-windows, build-linux, create-universal]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: '*'
+
+      - name: Generate Update Manifest
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          RELEASE_TYPE="${{ needs.prepare.outputs.release_type }}"
+          
+          # Create Tauri updater manifest
+          cat > latest.json << EOF
+          {
+            "version": "$VERSION",
+            "notes": "Release $VERSION",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "$(cat artifacts/macos-aarch64/*.sig 2>/dev/null || echo 'TODO')",
+                "url": "https://releases.truffle.io/$RELEASE_TYPE/Truffle_${VERSION}_aarch64.dmg"
+              },
+              "darwin-x86_64": {
+                "signature": "$(cat artifacts/macos-x86_64/*.sig 2>/dev/null || echo 'TODO')",
+                "url": "https://releases.truffle.io/$RELEASE_TYPE/Truffle_${VERSION}_x86_64.dmg"
+              },
+              "windows-x86_64": {
+                "signature": "$(cat artifacts/windows-x64/*.sig 2>/dev/null || echo 'TODO')",
+                "url": "https://releases.truffle.io/$RELEASE_TYPE/Truffle_${VERSION}_x64_en-US.msi"
+              },
+              "linux-x86_64": {
+                "signature": "$(cat artifacts/linux-deb/*.sig 2>/dev/null || echo 'TODO')",
+                "url": "https://releases.truffle.io/$RELEASE_TYPE/Truffle_${VERSION}_amd64.deb"
+              }
+            }
+          }
+          EOF
+          
+          cat latest.json
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/**/*
+            latest.json
+          fail_on_unmatched_files: false
+
+      - name: Upload to R2 (CDN)
+        if: needs.prepare.outputs.release_type == 'stable'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: |
+            r2 object put truffle-releases/${{ needs.prepare.outputs.release_type }}/latest.json --file latest.json
+            for file in artifacts/**/*; do
+              if [ -f "$file" ]; then
+                r2 object put "truffle-releases/${{ needs.prepare.outputs.release_type }}/$(basename $file)" --file "$file"
+              fi
+            done
+
+      - name: Purge CDN Cache
+        if: needs.prepare.outputs.release_type == 'stable'
+        run: |
+          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/purge_cache" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{"purge_everything":true}'
+
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#releases'
+          text: |
+            Truffle ${{ needs.prepare.outputs.release_type }} ${{ needs.prepare.outputs.version }} released!
+            
+            Download: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.prepare.outputs.version }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always()

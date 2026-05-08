@@ -1,0 +1,120 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy'
+        required: true
+        type: choice
+        options:
+          - ruflo-gateway
+          - ruflo-command
+          - ruflo-auth
+          - ruflo-audio
+          - ruflo-asr
+          - ruflo-realtime
+          - ruflo-intelligence
+          - ruflo-storage
+          - ruflo-notify
+          - ruflo-billing
+          - all
+
+env:
+  AWS_REGION: us-west-2
+  EKS_CLUSTER: ruflo-staging
+  HELM_VERSION: '3.13.0'
+
+jobs:
+  # ============================================================================
+  # Deploy to Staging EKS
+  # ============================================================================
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Deploy services
+        run: |
+          SERVICE="${{ github.event.inputs.service }}"
+          if [ -z "$SERVICE" ] || [ "$SERVICE" = "all" ]; then
+            SERVICES=(ruflo-gateway ruflo-command ruflo-auth ruflo-audio ruflo-asr ruflo-realtime ruflo-intelligence ruflo-storage ruflo-notify ruflo-billing)
+          else
+            SERVICES=($SERVICE)
+          fi
+
+          for svc in "${SERVICES[@]}"; do
+            echo "Deploying $svc to staging..."
+            helm upgrade --install $svc ./helm-charts/ruflo-service \
+              --namespace staging \
+              --set image.tag=develop-${{ github.sha }} \
+              --set image.repository=ghcr.io/${{ github.repository }}/$svc \
+              --set environment=staging \
+              --set replicaCount=2 \
+              --values ./helm-charts/ruflo-service/values-staging.yaml \
+              --wait --timeout 10m
+          done
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n staging
+          kubectl get services -n staging
+
+      - name: Run smoke tests
+        run: |
+          # Wait for services to be ready
+          sleep 30
+          
+          # Run health checks
+          curl -sf https://api.staging.ruflo.ai/health || exit 1
+          curl -sf https://api.staging.ruflo.ai/ready || exit 1
+
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Staging deployment ${{ job.status }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "Staging Deployment ${{ job.status }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {"type": "mrkdwn", "text": "*Service:*\n${{ github.event.inputs.service || 'all' }}"},
+                    {"type": "mrkdwn", "text": "*Commit:*\n${{ github.sha }}"},
+                    {"type": "mrkdwn", "text": "*By:*\n${{ github.actor }}"},
+                    {"type": "mrkdwn", "text": "*Time:*\n$(date)"}
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}

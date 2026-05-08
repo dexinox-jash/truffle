@@ -1,0 +1,59 @@
+[package]
+name = "ruflo-intelligence"
+version = "1.0.0"
+edition = "2021"
+authors = ["Ruflo Team <team@ruflo.ai>"]
+description = "AI/ML inference service for Ruflo AI Meeting Platform"
+
+[dependencies]
+# Core
+tokio = { version = "1.35", features = ["full"] }
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Database
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-native-tls", "uuid", "chrono", "json"] }
+
+# HTTP Client
+reqwest = { version = "0.11", features = ["json", "rustls-tls", "stream"], default-features = false }
+eventsource-stream = "0.2"
+futures = "0.3"
+
+# Embeddings & Vector Search
+fastembed = "3"
+
+# ONNX Runtime for local inference
+ort = { version = "2.0.0-rc.0", features = ["cuda", "tensorrt"] }
+ndarray = "0.15"
+
+# Text processing
+regex = "1.10"
+unicode-segmentation = "1.11"
+
+# Audio
+cpal = "0.15"
+rodio = "0.17"
+symphonia = { version = "0.5", features = ["wav", "mp3", "flac"] }
+
+# Utilities
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+anyhow = "1.0"
+thiserror = "1.0"
+tokio-stream = "0.1"
+async-stream = "0.3"
+
+# Metrics
+metrics = "0.22"
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[[bin]]
+name = "ruflo-intelligence"
+path = "src/main.rs"

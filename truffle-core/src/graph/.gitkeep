@@ -1,0 +1,26 @@
+# Graph Query API
+
+This module implements the Graph Query API for Task 2.3 of the Knowledge Graph Infrastructure.
+
+## Components
+
+- `query.rs` (255 lines) - GraphQuery trait, QueryResult, EntityFilter, RelationshipFilter
+- `repository.rs` (258 lines) - EntityRepository, RelationshipRepository, GraphRepository
+- `traversal.rs` (404 lines) - GraphTraversal (BFS/DFS), PathFinder, bidirectional pathfinding
+- `mod.rs` (71 lines) - Module exports, GraphConfig, GraphService
+
+## Total: ~988 lines
+
+## Features
+
+1. **Query Interface**: Async trait with fuzzy search, semantic search, time-range queries
+2. **Filter Builders**: Chainable API for entity/relationship filtering
+3. **Traversal**: BFS/DFS with cycle detection, configurable depth and confidence
+4. **Pathfinding**: BFS and bidirectional BFS pathfinding algorithms
+5. **Repository Pattern**: Clean separation between storage and query logic
+
+## Quality
+- Zero unwrap() usage
+- Comprehensive inline tests
+- Builder pattern for ergonomics
+- Type-safe throughout

@@ -1,0 +1,128 @@
+[package]
+name = "truffle-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["Truffle Engineering Team <engineering@truffle.io>"]
+description = "Local-First Knowledge Compiler - Core Rust Backend"
+license = "AGPL-3.0"
+repository = "https://github.com/truffle/truffle-core"
+keywords = ["knowledge-graph", "local-first", "crdt", "sqlite", "privacy"]
+categories = ["database", "data-structures", "cryptography"]
+rust-version = "1.75"
+
+[lib]
+name = "truffle_core"
+path = "src/lib.rs"
+
+[dependencies]
+# Core async runtime
+tokio = { version = "1.35", features = ["full", "rt-multi-thread"] }
+tokio-util = { version = "0.7", features = ["codec", "io"] }
+
+# SQLite and database
+rusqlite = { version = "0.30", features = ["bundled", "chrono", "uuid", "serde_json", "functions"] }
+sqlite-vec = "0.1"
+refinery = { version = "0.8", features = ["rusqlite"] }
+
+# CRDT (Yjs/Yrs for Rust)
+yrs = "0.18"
+yrs-kvstore = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# UUID and identifiers
+uuid = { version = "1.6", features = ["v4", "v5", "serde"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Cryptography
+sha2 = "0.10"
+sha3 = "0.10"
+hmac = "0.12"
+hkdf = "0.12"
+aes-gcm = "0.10"
+chacha20poly1305 = "0.10"
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+ed25519-dalek = { version = "2.1", features = ["serde"] }
+rand = "0.8"
+getrandom = { version = "0.2", features = ["js"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# File system and paths
+dirs = "5.0"
+walkdir = "2.4"
+tempfile = "3.9"
+
+# Image processing (for metadata extraction)
+image = { version = "0.24", default-features = false, features = ["png", "jpeg"] }
+
+# Text processing
+regex = "1.10"
+unicode-normalization = "0.1"
+unicode-segmentation = "1.11"
+rphonetic = "3.0"  # Soundex/Metaphone algorithms for entity resolution
+
+# Concurrent data structures
+dashmap = "5.5"
+parking_lot = "0.12"
+crossbeam = "0.8"
+crossbeam-channel = "0.5"
+
+# HTTP/WebSocket (for sync)
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], optional = true }
+tokio-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"], optional = true }
+futures = "0.3"
+
+# Configuration
+config = "0.14"
+
+# GraphQL API
+async-graphql = { version = "7.0", features = ["chrono", "uuid"] }
+async-trait = "0.1"
+
+# Validation
+validator = { version = "0.16", features = ["derive"] }
+
+# Markdown processing
+pulldown-cmark = "0.9"
+pulldown-cmark-to-cmark = "11.0"
+
+# Misc
+lazy_static = "1.4"
+once_cell = "1.19"
+indexmap = "2.1"
+bitflags = "2.4"
+base64 = "0.21"
+hex = "0.4"
+
+[dev-dependencies]
+tokio-test = "0.4"
+pretty_assertions = "1.4"
+proptest = "1.4"
+criterion = { version = "0.5", features = ["async_tokio"] }
+mockall = "0.12"
+insta = { version = "1.34", features = ["json", "yaml"] }
+
+[features]
+default = ["sync"]
+sync = ["reqwest", "tokio-tungstenite"]
+enterprise = ["sync"]
+
+# Profiles defined in workspace root Cargo.toml
+
+# Benchmarks for graph operations
+[[bench]]
+name = "graph_benchmarks"
+harness = false
+path = "tests/benches/graph_benchmarks.rs"

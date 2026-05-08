@@ -1,0 +1,36 @@
+# Rust
+target/
+
+# Node
+node_modules/
+
+# Environment
+.env
+.env.*
+
+# Agent tooling / dev artifacts
+.agents/
+.code-review/
+.knowledge-graph/
+.security/
+.skills/
+archive/
+fastlane/
+helm-charts/
+k8s/
+terraform/
+docker/
+monitoring/
+marketplace/
+migrations/
+benchmarks/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

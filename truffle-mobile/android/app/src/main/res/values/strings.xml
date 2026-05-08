@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Truffle</string>
+    <string name="share_label">Save to Truffle</string>
+    
+    <!-- Navigation -->
+    <string name="nav_wiki">Wiki</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_captures">Captures</string>
+    <string name="nav_settings">Settings</string>
+    
+    <!-- Wiki -->
+    <string name="wiki_empty_title">No Wiki Content Yet</string>
+    <string name="wiki_empty_subtitle">Your compiled knowledge will appear here.\nUse the desktop app for full editing.</string>
+    <string name="wiki_backlinks">Backlinks</string>
+    <string name="wiki_source_screenshots">Source Screenshots</string>
+    
+    <!-- Search -->
+    <string name="search_hint">Search wiki, screenshots…</string>
+    <string name="search_recent">Recent Searches</string>
+    <string name="search_suggested">Suggested</string>
+    <string name="search_no_results">No results found</string>
+    
+    <!-- Captures -->
+    <string name="captures_status_pending">Pending</string>
+    <string name="captures_status_processing">Processing</string>
+    <string name="captures_status_completed">Done</string>
+    <string name="captures_status_failed">Failed</string>
+    
+    <!-- Settings -->
+    <string name="settings_storage">Storage</string>
+    <string name="settings_sync">Sync</string>
+    <string name="settings_data">Data</string>
+    <string name="settings_about">About</string>
+    <string name="settings_export_obsidian">Export to Obsidian</string>
+    <string name="settings_pair_device">Pair New Device</string>
+    <string name="settings_manage_storage">Manage Storage</string>
+    <string name="settings_sync_now">Sync Now</string>
+    
+    <!-- Notifications -->
+    <string name="notification_channel_compilation">Compilation</string>
+    <string name="notification_compiling">Compiling screenshots…</string>
+    <string name="notification_syncing">Syncing…</string>
+    
+    <!-- Errors -->
+    <string name="error_storage_full">Storage full. Please free up space.</string>
+    <string name="error_sync_failed">Sync failed. Will retry later.</string>
+    <string name="error_processing_failed">Processing failed. Will retry later.</string>
+</resources>

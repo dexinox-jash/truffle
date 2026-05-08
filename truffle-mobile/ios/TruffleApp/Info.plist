@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    TruffleApp Info.plist
+    Main app configuration for Project Truffle
+-->
+<plist version="1.0">
+<dict>
+    <!-- Bundle Information -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleDisplayName</key>
+    <string>Truffle</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    
+    <!-- URL Schemes -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.truffle.app</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>truffle</string>
+            </array>
+        </dict>
+    </array>
+    
+    <!-- Required Device Capabilities -->
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>armv7</string>
+    </array>
+    
+    <!-- Background Modes -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>processing</string>
+    </array>
+    
+    <!-- BGTaskScheduler Permitted Identifiers -->
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.truffle.sync.background</string>
+        <string>com.truffle.compilation.background</string>
+    </array>
+    
+    <!-- Privacy Descriptions -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Truffle needs access to your photo library to save exported screenshots.</string>
+    
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Truffle needs permission to save screenshots to your photo library.</string>
+    
+    <key>NSFaceIDUsageDescription</key>
+    <string>Truffle uses Face ID to secure your encryption keys.</string>
+    
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Truffle uses local network for device pairing.</string>
+    
+    <!-- User Interface -->
+    <key>UIUserInterfaceStyle</key>
+    <string>Dark</string>
+    
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    
+    <!-- Launch Screen -->
+    <key>UILaunchScreen</key>
+    <dict>
+        <key>UIColorName</key>
+        <string>LaunchScreenBackground</string>
+        <key>UIImageName</key>
+        <string>LaunchScreen</string>
+    </dict>
+    
+    <!-- App Transport Security -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <false/>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <key>truffle.io</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <false/>
+                <key>NSExceptionMinimumTLSVersion</key>
+                <string>TLSv1.3</string>
+            </dict>
+        </dict>
+    </dict>
+    
+    <!-- Minimum OS Version -->
+    <key>MinimumOSVersion</key>
+    <string>15.0</string>
+</dict>
+</plist>

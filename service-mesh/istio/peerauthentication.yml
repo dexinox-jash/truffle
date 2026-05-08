@@ -1,0 +1,19 @@
+# STRICT mTLS - All services must use mutual TLS
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: production
+spec:
+  mtls:
+    mode: STRICT
+---
+# Permissive mode for migration (canary)
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: permissive
+  namespace: staging
+spec:
+  mtls:
+    mode: PERMISSIVE

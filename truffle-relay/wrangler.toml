@@ -1,0 +1,122 @@
+# Project Truffle Zero-Knowledge Relay Server
+# Cloudflare Workers Configuration
+# SPEC v2.0 SECTION 2.3.4 - Relay Server
+
+name = "truffle-relay"
+main = "src/index.ts"
+compatibility_date = "2024-11-12"
+compatibility_flags = ["nodejs_compat"]
+
+# Worker limits - SPEC: 50ms CPU time limit
+# Cloudflare Workers automatically enforce these limits
+
+[observability]
+enabled = true
+head_sampling_rate = 0.1
+
+# Environment Variables (secrets should be set via `wrangler secret put`)
+[vars]
+ENVIRONMENT = "development"
+PROTOCOL_VERSION = "1"
+RATE_LIMIT_FREE = "100"
+RATE_LIMIT_PAID = "10000"
+DATA_RETENTION_DAYS = "30"
+MAX_BLOB_SIZE_MB = "10"
+WEBSOCKET_IDLE_TIMEOUT_MS = "300000"
+
+# R2 Buckets - SPEC: Store-and-forward encrypted blobs
+[[r2_buckets]]
+binding = "SYNC_BLOBS"
+bucket_name = "truffle-sync-blobs"
+
+[[r2_buckets]]
+binding = "AUDIT_LOGS"
+bucket_name = "truffle-audit-logs"
+
+# KV Namespaces - For rate limiting and session state
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "truffle_rate_limit_kv"
+
+[[kv_namespaces]]
+binding = "DEVICE_SESSIONS"
+id = "truffle_device_sessions"
+
+[[kv_namespaces]]
+binding = "WEBSOCKET_STATE"
+id = "truffle_websocket_state"
+
+# Durable Objects - For WebSocket coordination
+[[durable_objects.bindings]]
+name = "WEBSOCKET_HUB"
+class_name = "WebSocketHub"
+
+# Durable Object migrations
+[[migrations]]
+tag = "v1"
+new_classes = ["WebSocketHub"]
+
+# Staging Environment
+[env.staging]
+name = "truffle-relay-staging"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+RATE_LIMIT_FREE = "100"
+RATE_LIMIT_PAID = "10000"
+DATA_RETENTION_DAYS = "30"
+
+[[env.staging.r2_buckets]]
+binding = "SYNC_BLOBS"
+bucket_name = "truffle-sync-blobs-staging"
+
+[[env.staging.r2_buckets]]
+binding = "AUDIT_LOGS"
+bucket_name = "truffle-audit-logs-staging"
+
+[[env.staging.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "truffle_rate_limit_kv_staging"
+
+[[env.staging.kv_namespaces]]
+binding = "DEVICE_SESSIONS"
+id = "truffle_device_sessions_staging"
+
+[[env.staging.kv_namespaces]]
+binding = "WEBSOCKET_STATE"
+id = "truffle_websocket_state_staging"
+
+# Production Environment
+[env.production]
+name = "truffle-relay-production"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+RATE_LIMIT_FREE = "100"
+RATE_LIMIT_PAID = "10000"
+DATA_RETENTION_DAYS = "30"
+
+[[env.production.r2_buckets]]
+binding = "SYNC_BLOBS"
+bucket_name = "truffle-sync-blobs-prod"
+
+[[env.production.r2_buckets]]
+binding = "AUDIT_LOGS"
+bucket_name = "truffle-audit-logs-prod"
+
+[[env.production.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "truffle_rate_limit_kv_prod"
+
+[[env.production.kv_namespaces]]
+binding = "DEVICE_SESSIONS"
+id = "truffle_device_sessions_prod"
+
+[[env.production.kv_namespaces]]
+binding = "WEBSOCKET_STATE"
+id = "truffle_websocket_state_prod"
+
+# Analytics Engine (optional - for metrics)
+[[analytics_engine_datasets]]
+binding = "RELAY_METRICS"
+dataset = "truffle_relay_metrics"

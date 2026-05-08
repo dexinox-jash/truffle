@@ -1,0 +1,80 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "bundle": {
+    "active": true,
+    "category": "Productivity",
+    "copyright": "© 2024 Truffle Team",
+    "deb": {
+      "depends": []
+    },
+    "externalBin": [],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "identifier": "io.truffle.desktop",
+    "longDescription": "Local-First Knowledge Compiler - Transform screenshots into structured knowledge",
+    "macOS": {
+      "entitlements": "Entitlements.plist",
+      "exceptionDomain": "",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null,
+      "minimumSystemVersion": "11.0"
+    },
+    "resources": [],
+    "shortDescription": "Knowledge Compiler",
+    "targets": "all",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    }
+  },
+  "productName": "Truffle",
+  "version": "0.1.0",
+  "mainBinaryName": "Truffle",
+  "identifier": "io.truffle.desktop",
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk5MDQ0NDE0QjFGN0E5MjYKUldRbUt5SzVwVWtLa2R6ZVhsSVZ0d1pJTXZ6TjVZcVlVbVZqRXZqYWNrQXZrQjJhT1B4WUVkMgo=",
+      "endpoints": [
+        "https://updates.truffle.io/{{target}}/{{arch}}/{{current_version}}"
+      ]
+    }
+  },
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost; style-src 'self' 'unsafe-inline'",
+      "dangerousDisableAssetCspModification": false
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "height": 900,
+        "resizable": true,
+        "title": "Truffle",
+        "width": 1440,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "center": true,
+        "decorations": true,
+        "transparent": false,
+        "visible": true,
+        "focus": true
+      }
+    ],
+    "withGlobalTauri": false
+  }
+}

@@ -1,0 +1,47 @@
+# Circuit breaker configuration
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: ruflo-circuit-breaker
+  namespace: production
+spec:
+  host: "*.production.svc.cluster.local"
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 100
+        maxRetries: 3
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+    loadBalancer:
+      simple: LEAST_CONN
+      localityLbSetting:
+        enabled: true
+        failover:
+          - from: us-west-2a
+            to: us-west-2b
+          - from: us-west-2b
+            to: us-west-2c
+---
+# mTLS configuration per service
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: ruflo-mtls
+  namespace: production
+spec:
+  host: "*.production.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    portLevelSettings:
+      - port:
+          number: 8080
+        loadBalancer:
+          simple: ROUND_ROBIN

@@ -1,0 +1,286 @@
+# Project Truffle - Relay Server Deployment
+# Section 6.2.1: Relay Deployment (Cloudflare Workers)
+# Zero-downtime deployment with rollback capability
+
+name: Deploy Relay
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'relay/**'
+      - '.github/workflows/deploy-relay.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'relay/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment Environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      rollback:
+        description: 'Rollback to previous version'
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '20'
+  WRANGLER_VERSION: '3'
+
+concurrency:
+  group: deploy-relay-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ============================================================================
+  # Test & Lint
+  # ============================================================================
+  test:
+    name: Test Relay
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: relay
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: relay/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type Check
+        run: npm run typecheck
+
+      - name: Run Tests
+        run: npm test
+
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./relay/coverage/lcov.info
+          flags: relay
+
+  # ============================================================================
+  # Deploy to Staging
+  # ============================================================================
+  deploy-staging:
+    name: Deploy to Staging
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event.inputs.environment != 'production'
+    environment:
+      name: staging
+      url: https://relay-staging.truffle.io
+    defaults:
+      run:
+        working-directory: relay
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: relay/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Deploy to Cloudflare Workers (Staging)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: relay
+          command: deploy --env staging --keep-vars
+
+      - name: Run Smoke Tests
+        run: |
+          sleep 10
+          npm run test:smoke -- --env staging
+
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          text: |
+            Relay staging deployment completed!
+            Commit: ${{ github.sha }}
+            URL: https://relay-staging.truffle.io
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always()
+
+  # ============================================================================
+  # Deploy to Production
+  # ============================================================================
+  deploy-production:
+    name: Deploy to Production
+    needs: [test, deploy-staging]
+    runs-on: ubuntu-latest
+    if: (github.ref == 'refs/heads/main' && github.event.inputs.environment == 'production') || (github.ref == 'refs/heads/main' && github.event_name == 'push')
+    environment:
+      name: production
+      url: https://relay.truffle.io
+    defaults:
+      run:
+        working-directory: relay
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: relay/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Get Current Deployment
+        id: current
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: relay
+          command: versions list --env production --json | jq -r '.[0].id'
+
+      - name: Store Current Version for Rollback
+        run: |
+          echo "PREVIOUS_VERSION=${{ steps.current.outputs.command-output }}" >> $GITHUB_ENV
+
+      - name: Deploy to Cloudflare Workers (Production)
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: relay
+          command: deploy --env production --keep-vars
+
+      - name: Run Smoke Tests
+        run: |
+          sleep 10
+          npm run test:smoke -- --env production
+
+      - name: Run E2E Tests
+        run: |
+          npm run test:e2e -- --env production
+
+      - name: Verify Deployment
+        run: |
+          # Check health endpoint
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://relay.truffle.io/health)
+          
+          if [ "$HEALTH_STATUS" != "200" ]; then
+            echo "::error::Health check failed with status $HEALTH_STATUS"
+            exit 1
+          fi
+          
+          echo "Health check passed ✓"
+
+      - name: Notify Slack (Success)
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          channel: '#deployments'
+          text: |
+            Relay production deployment completed successfully!
+            
+            Version: ${{ github.sha }}
+            URL: https://relay.truffle.io
+            Rollback: `wrangler versions deploy ${{ env.PREVIOUS_VERSION }} --env production`
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack (Failure)
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#deployments'
+          text: |
+            Relay production deployment FAILED!
+            
+            Version: ${{ github.sha }}
+            Rollback command: `wrangler versions deploy ${{ env.PREVIOUS_VERSION }} --env production`
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: failure()
+
+  # ============================================================================
+  # Rollback
+  # ============================================================================
+  rollback:
+    name: Rollback Production
+    runs-on: ubuntu-latest
+    if: github.event.inputs.rollback == 'true'
+    environment:
+      name: production
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Get Previous Version
+        id: previous
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: relay
+          command: versions list --env production --json | jq -r '.[1].id'
+
+      - name: Rollback Deployment
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: relay
+          command: versions deploy ${{ steps.previous.outputs.command-output }} --env production
+
+      - name: Verify Rollback
+        run: |
+          sleep 10
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://relay.truffle.io/health)
+          
+          if [ "$HEALTH_STATUS" != "200" ]; then
+            echo "::error::Rollback health check failed with status $HEALTH_STATUS"
+            exit 1
+          fi
+          
+          echo "Rollback verified ✓"
+
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          text: |
+            Relay production ROLLBACK completed!
+            
+            Rolled back to version: ${{ steps.previous.outputs.command-output }}
+            URL: https://relay.truffle.io
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always()

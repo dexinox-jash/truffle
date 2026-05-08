@@ -1,0 +1,98 @@
+# Traffic routing and canary deployments
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: ruflo-gateway-routes
+  namespace: production
+spec:
+  hosts:
+    - api.ruflo.ai
+  gateways:
+    - ruflo-gateway
+  http:
+    # Health checks - no delay
+    - match:
+        - uri:
+            exact: /health
+        - uri:
+            exact: /ready
+      route:
+        - destination:
+            host: ruflo-gateway
+            port:
+              number: 8080
+      timeout: 5s
+      retries:
+        attempts: 0
+
+    # API v1 routes
+    - match:
+        - uri:
+            prefix: /api/v1
+      route:
+        - destination:
+            host: ruflo-gateway
+            port:
+              number: 8080
+      timeout: 30s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,reset,connect-failure
+
+    # WebSocket routes
+    - match:
+        - uri:
+            prefix: /ws
+      route:
+        - destination:
+            host: ruflo-realtime
+            port:
+              number: 8080
+      websocketUpgrade: true
+      timeout: 0s  # No timeout for WebSockets
+---
+# Canary deployment for ruflo-command
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: ruflo-command-canary
+  namespace: production
+spec:
+  hosts:
+    - ruflo-command
+  http:
+    - match:
+        - headers:
+            canary:
+              exact: "true"
+      route:
+        - destination:
+            host: ruflo-command
+            subset: canary
+          weight: 100
+    - route:
+        - destination:
+            host: ruflo-command
+            subset: stable
+          weight: 90
+        - destination:
+            host: ruflo-command
+            subset: canary
+          weight: 10
+---
+# Subset definitions for canary
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: ruflo-command-subsets
+  namespace: production
+spec:
+  host: ruflo-command
+  subsets:
+    - name: stable
+      labels:
+        version: stable
+    - name: canary
+      labels:
+        version: canary

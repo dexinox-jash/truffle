@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    TruffleShareExtension Info.plist
+    SPEC v2.0 Section 5.3: Mobile Companion - iOS Share Extension
+    
+    Configuration for screenshot capture share extension
+    - Activates only for single image shares
+    - No JavaScript preprocessing
+    - Minimal activation rules for performance
+-->
+<plist version="1.0">
+<dict>
+    <!-- Bundle Information -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleDisplayName</key>
+    <string>Save to Truffle</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    
+    <!-- Required Device Capabilities -->
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>armv7</string>
+    </array>
+    
+    <!-- Extension Configuration -->
+    <key>NSExtension</key>
+    <dict>
+        <!-- Extension Point Identifier -->
+        <key>NSExtensionPointIdentifier</key>
+        <string>com.apple.share-services</string>
+        
+        <!-- Principal Class - The entry point for the share extension -->
+        <key>NSExtensionPrincipalClass</key>
+        <string>$(PRODUCT_MODULE_NAME).ShareViewController</string>
+        
+        <!-- Activation Rules - Only activate for single images -->
+        <key>NSExtensionActivationRule</key>
+        <dict>
+            <!-- Support only 1 image at a time -->
+            <key>NSExtensionActivationSupportsImageWithMaxCount</key>
+            <integer>1</integer>
+            
+            <!-- Do NOT support other content types -->
+            <key>NSExtensionActivationSupportsMovieWithMaxCount</key>
+            <integer>0</integer>
+            <key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
+            <integer>0</integer>
+            <key>NSExtensionActivationSupportsWebPageWithMaxCount</key>
+            <integer>0</integer>
+            <key>NSExtensionActivationSupportsText</key>
+            <false/>
+            <key>NSExtensionActivationSupportsAttachmentsWithMaxCount</key>
+            <integer>1</integer>
+        </dict>
+        
+        <!-- Action Identifier -->
+        <key>NSExtensionActionIdentifier</key>
+        <string>com.truffle.share.saveScreenshot</string>
+        
+        <!-- Preprocessing - Disabled for performance -->
+        <key>NSExtensionJavaScriptPreprocessingFile</key>
+        <string></string>
+    </dict>
+    
+    <!-- App Groups - Required for sharing data with main app -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.truffle.shared</string>
+    </array>
+    
+    <!-- Privacy Descriptions -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Truffle needs access to save screenshots to your photo library if you choose to export them.</string>
+    
+    <!-- Background Modes -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>processing</string>
+    </array>
+    
+    <!-- User Interface Style - Always dark (Darkroom design system) -->
+    <key>UIUserInterfaceStyle</key>
+    <string>Dark</string>
+    
+    <!-- Supported Interface Orientations -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    
+    <!-- Minimum OS Version -->
+    <key>MinimumOSVersion</key>
+    <string>15.0</string>
+</dict>
+</plist>

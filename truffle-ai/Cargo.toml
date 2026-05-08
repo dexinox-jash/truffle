@@ -1,0 +1,113 @@
+[package]
+name = "truffle-ai"
+version = "0.1.0"
+edition = "2021"
+authors = ["Project Truffle AI Team"]
+description = "On-device multimodal AI processing for Project Truffle"
+license = "AGPL-3.0"
+repository = "https://github.com/truffle/truffle-ai"
+keywords = ["ai", "llm", "multimodal", "on-device", "privacy"]
+categories = ["science", "text-processing", "computer-vision"]
+rust-version = "1.75"
+
+[features]
+default = ["metal"]
+metal = ["llama-cpp-2/metal", "llama-cpp-sys-2/metal"]
+cuda = ["llama-cpp-2/cuda", "llama-cpp-sys-2/cuda"]
+vulkan = ["llama-cpp-2/vulkan", "llama-cpp-sys-2/vulkan"]
+rocm = ["llama-cpp-2/hipblas", "llama-cpp-sys-2/hipblas"]
+
+[dependencies]
+# Core llama.cpp bindings - SPEC v2.0 Section 2.2.2
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", rev = "b2699" }
+llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs", rev = "b2699" }
+
+# Tokenization
+tokenizers = "0.15"
+
+# Image processing - SPEC v2.0 Section 2.2.2
+image = { version = "0.24", features = ["jpeg", "png", "webp"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# ONNX inference for MiniLM classifier - SPEC v2.0 Section 2.2.2
+tract-onnx = "0.21"
+ndarray = "0.15"
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# HTTP client for model downloads
+reqwest = { version = "0.11", features = ["stream", "rustls-tls"] }
+
+# File operations
+tempfile = "3.9"
+walkdir = "2.4"
+
+# Cryptographic hashing for model verification
+sha2 = "0.10"
+hex = "0.4"
+
+# Configuration
+config = "0.14"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Regex for pattern matching
+regex = "1.10"
+
+# Fuzzy string matching for entity resolution
+sublime_fuzzy = "0.7"
+
+# UUID generation
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# CRDT support
+yrs = "0.18"
+
+# SQLite with vector extension support (via separate crate)
+rusqlite = { version = "0.30", features = ["bundled", "chrono", "uuid"] }
+
+# Memory monitoring
+sysinfo = "0.30"
+
+# Rate limiting
+governor = "0.2"
+
+# Metrics
+metrics = "0.22"
+metrics-exporter-prometheus = "0.13"
+
+[dev-dependencies]
+# Testing
+tokio-test = "0.4"
+mockall = "0.12"
+criterion = { version = "0.5", features = ["async_tokio"] }
+pretty_assertions = "1.4"
+insta = { version = "1.34", features = ["json"] }
+
+[[bench]]
+name = "compilation_benchmark"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true

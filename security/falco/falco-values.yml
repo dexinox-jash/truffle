@@ -1,0 +1,64 @@
+# Falco Helm values
+driver:
+  kind: ebpf
+
+falco:
+  rules_file:
+    - /etc/falco/falco_rules.yaml
+    - /etc/falco/falco_rules.local.yaml
+    - /etc/falco/rules.d
+
+  # JSON output for log aggregation
+  json_output: true
+  json_include_output_property: true
+
+  # HTTP output to Falcosidekick
+  http_output:
+    enabled: true
+    url: http://falcosidekick:2801
+
+  # Logging
+  log_syslog: false
+  log_stderr: true
+
+  # Priority
+  priority: warning
+
+# Falcosidekick for alert routing
+falcosidekick:
+  enabled: true
+  replicaCount: 2
+  
+  config:
+    # Slack alerts
+    slack:
+      webhookurl: "${SLACK_WEBHOOK_URL}"
+      minimumpriority: "warning"
+    
+    # AWS Security Hub
+    aws:
+      securityhub:
+        region: us-west-2
+        minimumpriority: "critical"
+    
+    # Datadog
+    datadog:
+      apikey: "${DATADOG_API_KEY}"
+      minimumpriority: "warning"
+
+  # Resources
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Falco Exporter for Prometheus
+falco-exporter:
+  enabled: true
+  
+  serviceMonitor:
+    enabled: true
+    interval: 30s

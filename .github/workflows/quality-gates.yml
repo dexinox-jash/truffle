@@ -1,0 +1,76 @@
+name: Quality Gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rust-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+      
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+      
+      - name: Check formatting
+        run: cargo fmt --check
+      
+      - name: Run clippy
+        run: cargo clippy --workspace -- -D warnings
+      
+      - name: Run tests
+        run: cargo test --workspace
+
+  typescript-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      
+      - name: Install dependencies
+        run: cd truffle-desktop && pnpm install
+      
+      - name: Type check
+        run: cd truffle-desktop && pnpm typecheck
+      
+      - name: Lint
+        run: cd truffle-desktop && pnpm lint
+      
+      - name: Test
+        run: cd truffle-desktop && pnpm test
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+      
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+      
+      - name: Generate coverage
+        run: |
+          cd truffle-core
+          cargo tarpaulin --out Xml
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./truffle-core/cobertura.xml

@@ -1,0 +1,489 @@
+/* SPEC v2.0 SECTION 5.1.2: Motion & Micro-interactions */
+/* Compilation animation and other key animations for Truffle Desktop */
+
+/* ==================== COMPILATION ANIMATION ==================== */
+/* Chemical development metaphor - amber fluid filling progress bar */
+
+@keyframes compile-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes compile-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes compile-glow {
+  0%, 100% {
+    box-shadow: 
+      0 0 8px rgba(255, 184, 0, 0.4),
+      0 0 16px rgba(255, 184, 0, 0.2),
+      inset 0 0 8px rgba(255, 184, 0, 0.1);
+  }
+  50% {
+    box-shadow: 
+      0 0 16px rgba(255, 184, 0, 0.6),
+      0 0 32px rgba(255, 184, 0, 0.3),
+      inset 0 0 16px rgba(255, 184, 0, 0.2);
+  }
+}
+
+@keyframes fluid-wave {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes bubble-rise {
+  0% {
+    transform: translateY(100%) scale(0);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100%) scale(1);
+    opacity: 0;
+  }
+}
+
+/* Compilation Progress Bar */
+.compile-progress {
+  position: relative;
+  height: 4px;
+  background: #262626;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.compile-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    #FFB800 0%,
+    #FFC933 25%,
+    #FFB800 50%,
+    #E6A600 75%,
+    #FFB800 100%
+  );
+  background-size: 200% 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease-out;
+  animation: compile-shimmer 2s linear infinite;
+}
+
+.compile-progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 20px;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: fluid-wave 1.5s ease-in-out infinite;
+}
+
+/* Active compilation state */
+.compile-active .compile-progress-bar {
+  animation: 
+    compile-shimmer 2s linear infinite,
+    compile-glow 2s ease-in-out infinite;
+}
+
+/* Complete state */
+.compile-complete .compile-progress-bar {
+  background: #00D4AA;
+  animation: none;
+}
+
+/* Compilation Card Animation */
+.compilation-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.compilation-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 184, 0, 0.05),
+    transparent
+  );
+  transition: left 0.5s ease-out;
+}
+
+.compilation-card.compiling::before {
+  left: 100%;
+  animation: compile-shimmer 2s linear infinite;
+}
+
+/* Chemical bubbles effect */
+.chemical-bubbles {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.chemical-bubble {
+  position: absolute;
+  bottom: 0;
+  width: 4px;
+  height: 4px;
+  background: rgba(255, 184, 0, 0.6);
+  border-radius: 50%;
+  animation: bubble-rise 2s ease-out infinite;
+}
+
+.chemical-bubble:nth-child(1) { left: 10%; animation-delay: 0s; }
+.chemical-bubble:nth-child(2) { left: 30%; animation-delay: 0.3s; width: 6px; height: 6px; }
+.chemical-bubble:nth-child(3) { left: 50%; animation-delay: 0.6s; }
+.chemical-bubble:nth-child(4) { left: 70%; animation-delay: 0.9s; width: 5px; height: 5px; }
+.chemical-bubble:nth-child(5) { left: 90%; animation-delay: 1.2s; }
+
+/* ==================== UI TRANSITIONS ==================== */
+
+/* Fade transitions */
+.fade-enter {
+  opacity: 0;
+}
+
+.fade-enter-active {
+  opacity: 1;
+  transition: opacity 200ms ease-out;
+}
+
+.fade-exit {
+  opacity: 1;
+}
+
+.fade-exit-active {
+  opacity: 0;
+  transition: opacity 200ms ease-in;
+}
+
+/* Slide transitions */
+.slide-up-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.slide-up-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: all 200ms ease-out;
+}
+
+.slide-up-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.slide-up-exit-active {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: all 200ms ease-in;
+}
+
+/* Scale transitions */
+.scale-enter {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.scale-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scale-exit {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.scale-exit-active {
+  opacity: 0;
+  transform: scale(0.95);
+  transition: all 150ms ease-in;
+}
+
+/* ==================== INTERACTIVE STATES ==================== */
+
+/* Button hover lift */
+.btn-lift {
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.btn-lift:hover {
+  transform: translateY(-1px);
+}
+
+.btn-lift:active {
+  transform: translateY(0);
+}
+
+/* Card hover effect */
+.card-lift {
+  transition: transform 200ms ease-out, border-color 200ms ease-out;
+}
+
+.card-lift:hover {
+  transform: translateY(-2px);
+  border-color: #404040;
+}
+
+/* Focus ring animation */
+.focus-ring {
+  position: relative;
+}
+
+.focus-ring::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 2px solid transparent;
+  transition: border-color 150ms ease-out;
+}
+
+.focus-ring:focus-visible::after {
+  border-color: #FFB800;
+}
+
+/* ==================== LOADING STATES ==================== */
+
+/* Skeleton loading */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #1A1A1A 0%,
+    #262626 50%,
+    #1A1A1A 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* Spinner */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* Dots loading */
+@keyframes dots-bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.loading-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.loading-dots span {
+  width: 8px;
+  height: 8px;
+  background: #FFB800;
+  border-radius: 50%;
+  animation: dots-bounce 1.4s ease-in-out infinite both;
+}
+
+.loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+.loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+/* ==================== NOTIFICATIONS ==================== */
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-out-right {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.notification-enter {
+  animation: slide-in-right 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.notification-exit {
+  animation: slide-out-right 200ms ease-in;
+}
+
+/* ==================== PULSE EFFECTS ==================== */
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid #FFB800;
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* Status indicator pulse */
+@keyframes status-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 212, 170, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(0, 212, 170, 0);
+  }
+}
+
+.status-online {
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+/* ==================== COMMAND PALETTE ==================== */
+
+@keyframes command-palette-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.command-palette-enter {
+  animation: command-palette-enter 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ==================== TREE VIEW ==================== */
+
+@keyframes tree-expand {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tree-item-enter {
+  animation: tree-expand 150ms ease-out;
+}
+
+/* ==================== DRAG & DROP ==================== */
+
+@keyframes drag-pulse {
+  0%, 100% {
+    border-color: rgba(255, 184, 0, 0.5);
+    background: rgba(255, 184, 0, 0.02);
+  }
+  50% {
+    border-color: rgba(255, 184, 0, 0.8);
+    background: rgba(255, 184, 0, 0.05);
+  }
+}
+
+.drag-active {
+  animation: drag-pulse 1s ease-in-out infinite;
+}
+
+/* ==================== REDUCED MOTION ==================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .compile-progress-bar,
+  .compile-active .compile-progress-bar,
+  .chemical-bubble,
+  .skeleton,
+  .spinner,
+  .loading-dots span,
+  .pulse-ring::before,
+  .status-online {
+    animation: none !important;
+  }
+}

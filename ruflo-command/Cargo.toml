@@ -1,0 +1,49 @@
+[package]
+name = "ruflo-command"
+version = "1.0.0"
+edition = "2021"
+authors = ["Ruflo Team <team@ruflo.ai>"]
+description = "Ruflo Command Service - Compliance, Security & Enterprise Integration"
+license = "MIT"
+repository = "https://github.com/ruflo-ai/ruflo"
+
+[dependencies]
+# Core
+anyhow = "1.0"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+tokio = { version = "1.35", features = ["full"] }
+tracing = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Database
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-native-tls", "uuid", "chrono"] }
+
+# Encryption
+aes-gcm = "0.10"
+rand = "0.8"
+rsa = "0.9"
+sha2 = "0.10"
+hmac = "0.12"
+base64 = "0.21"
+
+# SAML/XML
+quick-xml = "0.31"
+flate2 = "1.0"
+
+# GeoIP
+maxminddb = "0.23"
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.12"
+
+[[bin]]
+name = "ruflo-command"
+path = "src/main.rs"
+
+[lib]
+name = "ruflo_command"
+path = "src/lib.rs"

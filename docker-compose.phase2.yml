@@ -1,0 +1,195 @@
+# Phase 2: Core Pipeline Services
+# 
+# Services:
+# - ruflo-audio: Audio ingestion (port 3001)
+# - ruflo-asr: Whisper.cpp ASR (port 3002)
+# - ruflo-storage: Meeting storage (port 3003)
+# - ruflo-analysis: AI analysis (port 3004)
+# - ruflo-dashboard: Next.js frontend (port 3000)
+
+version: '3.8'
+
+services:
+  # Audio Ingestion Service
+  ruflo-audio:
+    build:
+      context: ./ruflo-audio
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - RUST_LOG=info
+      - NATS_URL=nats://nats-1:4222
+      - MAX_FILE_SIZE=500MB
+    volumes:
+      - audio-uploads:/uploads
+    networks:
+      - ruflo-network
+    depends_on:
+      - nats-1
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ASR Service with Whisper.cpp
+  ruflo-asr:
+    build:
+      context: ./ruflo-asr
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - RUST_LOG=info
+      - NATS_URL=nats://nats-1:4222
+      - WHISPER_MODEL_PATH=/models/ggml-base.bin
+    volumes:
+      - whisper-models:/models
+      - audio-uploads:/uploads:ro
+    networks:
+      - ruflo-network
+    depends_on:
+      - nats-1
+      - ruflo-audio
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Storage Service
+  ruflo-storage:
+    build:
+      context: ./ruflo-storage
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      - RUST_LOG=info
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/ruflo
+      - S3_BUCKET=ruflo-meetings
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+    networks:
+      - ruflo-network
+    depends_on:
+      - postgres
+      - minio
+
+  # Analysis Service
+  ruflo-analysis:
+    build:
+      context: ./ruflo-analysis
+      dockerfile: Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      - RUST_LOG=info
+      - NATS_URL=nats://nats-1:4222
+      - USE_LOCAL_MODEL=true
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    networks:
+      - ruflo-network
+    depends_on:
+      - nats-1
+      - ruflo-asr
+
+  # Dashboard (Next.js)
+  ruflo-dashboard:
+    build:
+      context: ./ruflo-dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost
+    networks:
+      - ruflo-network
+    depends_on:
+      - ruflo-audio
+      - ruflo-asr
+      - ruflo-storage
+      - ruflo-analysis
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ruflo
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - ruflo-network
+    ports:
+      - "5432:5432"
+
+  # MinIO (S3-compatible object storage)
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - ruflo-network
+
+  # Create MinIO bucket
+  createbucket:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc mb myminio/ruflo-meetings || true;
+      /usr/bin/mc policy set public myminio/ruflo-meetings;
+      exit 0;
+      "
+    networks:
+      - ruflo-network
+
+  # Redis (for caching and sessions)
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    networks:
+      - ruflo-network
+
+  # Include existing infrastructure
+  nats-1:
+    extends:
+      file: vortex-infra/docker-compose.yml
+      service: nats-1
+
+  nats-2:
+    extends:
+      file: vortex-infra/docker-compose.yml
+      service: nats-2
+
+  nats-3:
+    extends:
+      file: vortex-infra/docker-compose.yml
+      service: nats-3
+
+volumes:
+  audio-uploads:
+  whisper-models:
+  postgres-data:
+  minio-data:
+  redis-data:
+
+networks:
+  ruflo-network:
+    driver: bridge

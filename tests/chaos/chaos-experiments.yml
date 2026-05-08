@@ -1,0 +1,55 @@
+# Chaos Engineering Experiments
+# Uses Chaos Mesh or Litmus
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-delay
+  namespace: chaos-testing
+spec:
+  action: delay
+  mode: one
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app.kubernetes.io/name: ruflo-gateway
+  duration: "5m"
+  delay:
+    latency: "100ms"
+    correlation: "100"
+    jitter: "0ms"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: pod-kill
+  namespace: chaos-testing
+spec:
+  action: pod-kill
+  mode: fixed-percent
+  value: "50"
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      workload: compute
+  duration: "10m"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: cpu-stress
+  namespace: chaos-testing
+spec:
+  mode: all
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app.kubernetes.io/name: ruflo-command
+  stressors:
+    cpu:
+      workers: 4
+      load: 80
+  duration: "5m"

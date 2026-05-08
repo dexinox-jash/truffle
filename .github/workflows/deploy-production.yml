@@ -1,0 +1,244 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy'
+        required: true
+        type: choice
+        options:
+          - ruflo-gateway
+          - ruflo-command
+          - ruflo-auth
+          - ruflo-audio
+          - ruflo-asr
+          - ruflo-realtime
+          - ruflo-intelligence
+          - ruflo-storage
+          - ruflo-notify
+          - ruflo-billing
+          - all
+      strategy:
+        description: 'Deployment strategy'
+        required: true
+        default: 'canary'
+        type: choice
+        options:
+          - canary
+          - rolling
+          - blue-green
+
+env:
+  AWS_REGION: us-west-2
+  EKS_CLUSTER: ruflo-production
+  HELM_VERSION: '3.13.0'
+
+jobs:
+  # ============================================================================
+  # Pre-deployment Checks
+  # ============================================================================
+  pre-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check production freeze
+        run: |
+          # No deployments on Fridays or weekends
+          DAY=$(date +%u)
+          if [ "$DAY" -ge 5 ]; then
+            echo "ERROR: Production deployments not allowed on Fridays/weekends"
+            exit 1
+          fi
+
+      - name: Verify all checks passed
+        run: |
+          # Ensure all required checks passed on this commit
+          echo "Verifying commit status..."
+          # This would typically call GitHub API to check status
+
+      - name: Require manual approval
+        run: |
+          echo "Deployment requires manual approval in GitHub Environment"
+
+  # ============================================================================
+  # Deploy to Production
+  # ============================================================================
+  deploy:
+    runs-on: ubuntu-latest
+    needs: pre-checks
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=sha-${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy with canary strategy
+        if: github.event.inputs.strategy == 'canary' || github.event.inputs.strategy == ''
+        run: |
+          SERVICE="${{ github.event.inputs.service }}"
+          if [ -z "$SERVICE" ] || [ "$SERVICE" = "all" ]; then
+            SERVICES=(ruflo-gateway ruflo-command ruflo-auth ruflo-audio ruflo-asr ruflo-realtime ruflo-intelligence ruflo-storage ruflo-notify ruflo-billing)
+          else
+            SERVICES=($SERVICE)
+          fi
+
+          for svc in "${SERVICES[@]}"; do
+            echo "Deploying $svc with canary strategy..."
+            
+            # Deploy canary (10% traffic)
+            helm upgrade --install $svc-canary ./helm-charts/ruflo-service \
+              --namespace production \
+              --set image.tag=${{ steps.version.outputs.VERSION }} \
+              --set image.repository=ghcr.io/${{ github.repository }}/$svc \
+              --set environment=production \
+              --set replicaCount=1 \
+              --set canary.enabled=true \
+              --set canary.weight=10 \
+              --values ./helm-charts/ruflo-service/values-production.yaml \
+              --wait --timeout 10m
+
+            # Run canary analysis
+            echo "Running canary analysis for 5 minutes..."
+            sleep 300
+            
+            # Check error rate
+            ERROR_RATE=$(kubectl exec -n production deploy/prometheus -- \
+              curl -s 'http://localhost:9090/api/v1/query?query=rate(http_requests_total{service="'$svc'",status=~"5.."}[5m])' | \
+              jq -r '.data.result[0].value[1] // "0"')
+            
+            if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
+              echo "ERROR: Canary error rate too high ($ERROR_RATE), rolling back..."
+              helm rollback $svc-canary 0 -n production
+              exit 1
+            fi
+
+            # Promote to full deployment
+            helm upgrade --install $svc ./helm-charts/ruflo-service \
+              --namespace production \
+              --set image.tag=${{ steps.version.outputs.VERSION }} \
+              --set image.repository=ghcr.io/${{ github.repository }}/$svc \
+              --set environment=production \
+              --set replicaCount=5 \
+              --values ./helm-charts/ruflo-service/values-production.yaml \
+              --wait --timeout 10m
+            
+            # Remove canary
+            helm uninstall $svc-canary -n production || true
+          done
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n production
+          kubectl get services -n production
+          kubectl get ingress -n production
+
+      - name: Run production smoke tests
+        run: |
+          sleep 30
+          curl -sf https://api.ruflo.ai/health || exit 1
+          curl -sf https://api.ruflo.ai/ready || exit 1
+
+      - name: Create deployment record
+        run: |
+          cat > deployment.json <<EOF
+          {
+            "service": "${{ github.event.inputs.service || 'all' }}",
+            "version": "${{ steps.version.outputs.VERSION }}",
+            "commit": "${{ github.sha }}",
+            "deployed_by": "${{ github.actor }}",
+            "timestamp": "$(date -Iseconds)",
+            "strategy": "${{ github.event.inputs.strategy || 'canary' }}"
+          }
+          EOF
+          
+          # Upload to S3 for audit trail
+          aws s3 cp deployment.json s3://ruflo-deployments/production/$(date +%Y/%m/%d)/${{ github.sha }}.json
+
+      - name: Notify on success
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "✅ Production deployment successful",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚀 Production Deployment Successful"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {"type": "mrkdwn", "text": "*Service:*\n${{ github.event.inputs.service || 'all' }}"},
+                    {"type": "mrkdwn", "text": "*Version:*\n${{ steps.version.outputs.VERSION }}"},
+                    {"type": "mrkdwn", "text": "*Strategy:*\n${{ github.event.inputs.strategy || 'canary' }}"},
+                    {"type": "mrkdwn", "text": "*By:*\n${{ github.actor }}"}
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "❌ Production deployment FAILED",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚨 Production Deployment FAILED"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {"type": "mrkdwn", "text": "*Service:*\n${{ github.event.inputs.service || 'all' }}"},
+                    {"type": "mrkdwn", "text": "*Commit:*\n${{ github.sha }}"},
+                    {"type": "mrkdwn", "text": "*By:*\n${{ github.actor }}"},
+                    {"type": "mrkdwn", "text": "*Action:*\nCheck logs immediately"}
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}

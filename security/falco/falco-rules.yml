@@ -1,0 +1,57 @@
+# Custom Falco rules for Ruflo
+- rule: Unauthorized Database Access
+  desc: Detect unauthorized access to database credentials
+  condition: >
+    spawned_process and
+    (proc.name in (cat, grep, strings)) and
+    (proc.args contains "DATABASE" or proc.args contains "password")
+  output: >
+    Potential credential access
+    user=%user.name command=%proc.cmdline
+    file=%fd.name parent=%proc.pname
+  priority: WARNING
+
+- rule: Sensitive File Access
+  desc: Detect access to sensitive files
+  condition: >
+    open_read and
+    (fd.name contains "/etc/ssl" or
+     fd.name contains "/var/run/secrets" or
+     fd.name contains "private.key")
+  output: >
+    Sensitive file accessed
+    user=%user.name file=%fd.name proc=%proc.name
+  priority: NOTICE
+
+- rule: Outbound Connection from Database
+  desc: Database containers should not make outbound connections
+  condition: >
+    outbound and
+    container.name contains "postgres" and
+    not (fd.sip in (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16))
+  output: >
+    Database container making external connection
+    connection=%fd.name container=%container.name
+  priority: CRITICAL
+
+- rule: Write to /tmp
+  desc: Detect writes to /tmp (common exploit staging)
+  condition: >
+    write_etc_common and
+    (fd.name startswith /tmp/ or fd.name startswith /var/tmp/)
+  output: >
+    File written to tmp directory
+    user=%user.name file=%fd.name proc=%proc.cmdline
+  priority: WARNING
+
+- rule: Shell in Container
+  desc: Detect shell execution in containers
+  condition: >
+    spawned_process and
+    shell_procs and
+    container.id != host
+  output: >
+    Shell spawned in container
+    user=%user.name shell=%proc.name parent=%proc.pname
+    cmdline=%proc.cmdline container=%container.name
+  priority: NOTICE

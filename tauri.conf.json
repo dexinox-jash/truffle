@@ -1,0 +1,265 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Truffle",
+  "version": "0.1.0",
+  "identifier": "io.truffle.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Truffle",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1000,
+        "minHeight": 700,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false,
+        "transparent": false,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "acceptFirstMouse": true,
+        "tabbingIdentifier": "Truffle"
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "connect-src": "'self' https://relay.truffle.io https://relay-staging.truffle.io https://updates.truffle.io https://updates-staging.truffle.io https://releases.truffle.io https://models.truffle.io",
+        "img-src": "'self' asset: https://asset.localhost blob: data:",
+        "style-src": "'self' 'unsafe-inline'",
+        "script-src": "'self' 'wasm-unsafe-eval'",
+        "font-src": "'self' data:",
+        "media-src": "'self' asset: https://asset.localhost"
+      },
+      "capabilities": [
+        {
+          "identifier": "default",
+          "windows": ["main"],
+          "permissions": [
+            "core:default",
+            "fs:default",
+            "fs:allow-app-read",
+            "fs:allow-app-write",
+            "fs:allow-app-meta",
+            "fs:allow-read",
+            "fs:allow-write",
+            "fs:allow-create",
+            "fs:allow-remove",
+            "fs:allow-rename",
+            "fs:allow-mkdir",
+            "dialog:default",
+            "dialog:allow-open",
+            "dialog:allow-save",
+            "dialog:allow-ask",
+            "dialog:allow-message",
+            "shell:default",
+            "shell:allow-open",
+            "http:default",
+            "http:allow-fetch",
+            "notification:default",
+            "notification:allow-request",
+            "notification:allow-notify",
+            "os:default",
+            "os:allow-platform",
+            "os:allow-version",
+            "os:allow-os-type",
+            "os:allow-family",
+            "os:allow-arch",
+            "os:allow-exe-extension",
+            "os:allow-locale",
+            "clipboard:default",
+            "clipboard:allow-read",
+            "clipboard:allow-write",
+            "global-shortcut:default",
+            "global-shortcut:allow-is-registered",
+            "global-shortcut:allow-register",
+            "global-shortcut:allow-unregister",
+            "process:default",
+            "process:allow-restart",
+            "process:allow-exit",
+            "updater:default",
+            "updater:allow-check",
+            "updater:allow-download",
+            "updater:allow-install",
+            "store:default",
+            "store:allow-get",
+            "store:allow-set",
+            "store:allow-delete",
+            "store:allow-clear",
+            "store:allow-keys",
+            "store:allow-values",
+            "store:allow-length",
+            "store:allow-save",
+            "store:allow-load"
+          ]
+        }
+      ]
+    },
+    "macOSPrivateApi": true,
+    "withGlobalTauri": false
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "models/*",
+      "schema/*",
+      "prompts/*"
+    ],
+    "copyright": "Copyright © 2024 Truffle Inc. All rights reserved.",
+    "category": "Productivity",
+    "shortDescription": "Local-first knowledge compiler for screenshots",
+    "longDescription": "Truffle transforms unstructured visual data (screenshots) into structured, interlinked, semantic knowledge graphs using on-device multimodal AI.",
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "12.0",
+      "license": "LICENSE",
+      "entitlements": "entitlements.plist",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "providerShortName": null,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "tsp": false,
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "wix": {
+        "language": "en-US",
+        "template": null,
+        "fragmentPaths": [],
+        "componentGroupRefs": [],
+        "componentRefs": [],
+        "featureGroupRefs": [],
+        "featureRefs": [],
+        "mergeRefs": [],
+        "skipWebviewInstall": false
+      },
+      "nsis": {
+        "template": null,
+        "license": "LICENSE",
+        "headerImage": null,
+        "sidebarImage": null,
+        "installerIcon": null,
+        "installMode": "both",
+        "languages": ["English"],
+        "displayLanguageSelector": false
+      }
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      },
+      "deb": {
+        "depends": [
+          "libgtk-3-0",
+          "libwebkit2gtk-4.0-37"
+        ],
+        "files": {}
+      },
+      "rpm": {
+        "depends": [],
+        "files": {},
+        "release": "1"
+      }
+    },
+    "android": {
+      "minSdkVersion": 24,
+      "targetSdkVersion": 34
+    },
+    "iOS": {
+      "minimumSystemVersion": "15.0",
+      "developmentTeam": null
+    },
+    "publisher": "Truffle Inc.",
+    "homepage": "https://truffle.io",
+    "licenseFile": "LICENSE"
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": true,
+      "endpoints": [
+        "https://updates.truffle.io/stable/latest.json",
+        "https://updates.truffle.io/canary/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQyRjEyQjYxQjRBOEY4QTUKUldUbllUbzJTa2R2dG9mZVN5dnRjQnJDbmpVNVNkM3Z2cTJjbE5ZOGVUd0VwTjBVR3lNdDluTQo=",
+      "windows": {
+        "installMode": "passive"
+      }
+    },
+    "fs": {
+      "requireLiteralLeadingDot": false
+    },
+    "shell": {
+      "open": true
+    },
+    "http": {
+      "scope": [
+        {
+          "url": "https://relay.truffle.io",
+          "allow": true
+        },
+        {
+          "url": "https://relay-staging.truffle.io",
+          "allow": true
+        },
+        {
+          "url": "https://updates.truffle.io",
+          "allow": true
+        },
+        {
+          "url": "https://releases.truffle.io",
+          "allow": true
+        },
+        {
+          "url": "https://models.truffle.io",
+          "allow": true
+        }
+      ]
+    },
+    "notification": {
+      "badgeCount": true
+    },
+    "os": {
+      "checkAccess": true
+    },
+    "clipboard": {
+      "read": true,
+      "write": true
+    },
+    "globalShortcut": {
+      "allow": true
+    },
+    "process": {
+      "relaunch": true
+    },
+    "store": {
+      "freezeOnRead": false
+    }
+  },
+  "cli": {
+    "add": {
+      "plugin": "tauri add"
+    }
+  }
+}

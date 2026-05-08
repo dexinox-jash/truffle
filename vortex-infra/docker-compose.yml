@@ -1,0 +1,190 @@
+# Vortex Infrastructure - Docker Compose
+# NATS JetStream Cluster + Monitoring Stack
+
+version: '3.8'
+
+services:
+  # NATS JetStream Cluster
+  nats-1:
+    image: nats:2.10-alpine
+    container_name: vortex-nats-1
+    command: >
+      --server_name nats-1
+      --jetstream
+      --store_dir /data/jetstream
+      --cluster_name vortex
+      --cluster nats://nats-1:6222
+      --routes nats://nats-2:6222,nats://nats-3:6222
+      --http_port 8222
+      --port 4222
+      --max_payload 8388608
+      --max_pending 67108864
+    volumes:
+      - nats-data-1:/data
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    networks:
+      - vortex-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  nats-2:
+    image: nats:2.10-alpine
+    container_name: vortex-nats-2
+    command: >
+      --server_name nats-2
+      --jetstream
+      --store_dir /data/jetstream
+      --cluster_name vortex
+      --cluster nats://nats-2:6222
+      --routes nats://nats-1:6222,nats://nats-3:6222
+      --http_port 8222
+      --port 4222
+      --max_payload 8388608
+      --max_pending 67108864
+    volumes:
+      - nats-data-2:/data
+    ports:
+      - "4223:4222"
+    networks:
+      - vortex-network
+    depends_on:
+      - nats-1
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  nats-3:
+    image: nats:2.10-alpine
+    container_name: vortex-nats-3
+    command: >
+      --server_name nats-3
+      --jetstream
+      --store_dir /data/jetstream
+      --cluster_name vortex
+      --cluster nats://nats-3:6222
+      --routes nats://nats-1:6222,nats://nats-2:6222
+      --http_port 8222
+      --port 4222
+      --max_payload 8388608
+      --max_pending 67108864
+    volumes:
+      - nats-data-3:/data
+    ports:
+      - "4224:4222"
+    networks:
+      - vortex-network
+    depends_on:
+      - nats-1
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Redis for node registry
+  redis:
+    image: redis:7-alpine
+    container_name: vortex-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - vortex-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: vortex-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - vortex-network
+
+  # Grafana for dashboards
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: vortex-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=ruflo-admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - vortex-network
+    depends_on:
+      - prometheus
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.50
+    container_name: vortex-jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - vortex-network
+
+  # Agent registry service
+  agent-registry:
+    build:
+      context: ./agent-framework
+      dockerfile: Dockerfile.registry
+    container_name: vortex-agent-registry
+    environment:
+      - NATS_URL=nats://nats-1:4222
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=info
+    ports:
+      - "8080:8080"
+    networks:
+      - vortex-network
+    depends_on:
+      - nats-1
+      - redis
+
+volumes:
+  nats-data-1:
+  nats-data-2:
+  nats-data-3:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  vortex-network:
+    driver: bridge

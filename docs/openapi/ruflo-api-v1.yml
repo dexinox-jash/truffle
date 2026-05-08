@@ -1,0 +1,542 @@
+openapi: 3.0.3
+info:
+  title: Ruflo AI Meeting Platform API
+  description: |
+    Enterprise-grade AI meeting platform API.
+    
+    ## Features
+    - Real-time meeting transcription
+    - AI-powered insights and analytics
+    - Workflow automation
+    - Enterprise SSO
+    
+    ## Authentication
+    All API requests require authentication via Bearer token:
+    ```
+    Authorization: Bearer <your-access-token>
+    ```
+  version: 1.0.0
+  contact:
+    name: Ruflo API Support
+    email: api@ruflo.ai
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.ruflo.ai/api/v1
+    description: Production
+  - url: https://api.staging.ruflo.ai/api/v1
+    description: Staging
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Meetings
+    description: Meeting management
+  - name: Workflows
+    description: Workflow automation
+  - name: Analytics
+    description: Meeting analytics and insights
+  - name: Users
+    description: User management
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Check API health status
+      security: []
+      tags:
+        - Health
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /auth/register:
+    post:
+      summary: Register new user
+      description: Create a new user account
+      security: []
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already exists
+
+  /auth/login:
+    post:
+      summary: User login
+      description: Authenticate and receive access token
+      security: []
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Get new access token using refresh token
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /meetings:
+    get:
+      summary: List meetings
+      description: Get paginated list of meetings
+      tags:
+        - Meetings
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [scheduled, in_progress, completed, cancelled]
+      responses:
+        '200':
+          description: List of meetings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingList'
+
+    post:
+      summary: Create meeting
+      description: Schedule a new meeting
+      tags:
+        - Meetings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMeetingRequest'
+      responses:
+        '201':
+          description: Meeting created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meeting'
+
+  /meetings/{meetingId}:
+    parameters:
+      - name: meetingId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Get meeting
+      description: Get meeting details
+      tags:
+        - Meetings
+      responses:
+        '200':
+          description: Meeting details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meeting'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update meeting
+      description: Update meeting details
+      tags:
+        - Meetings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMeetingRequest'
+      responses:
+        '200':
+          description: Meeting updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meeting'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete meeting
+      description: Cancel and delete meeting
+      tags:
+        - Meetings
+      responses:
+        '204':
+          description: Meeting deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /workflows:
+    get:
+      summary: List workflows
+      tags:
+        - Workflows
+      responses:
+        '200':
+          description: List of workflows
+
+    post:
+      summary: Create workflow
+      description: Create automation workflow
+      tags:
+        - Workflows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Workflow'
+      responses:
+        '201':
+          description: Workflow created
+
+  /workflows/{workflowId}/execute:
+    post:
+      summary: Execute workflow
+      description: Trigger workflow execution
+      tags:
+        - Workflows
+      parameters:
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                input:
+                  type: object
+      responses:
+        '202':
+          description: Workflow execution started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  execution_id:
+                    type: string
+                    format: uuid
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - first_name
+        - last_name
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        first_name:
+          type: string
+        last_name:
+          type: string
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+        token_type:
+          type: string
+          default: Bearer
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Meeting:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        scheduled_at:
+          type: string
+          format: date-time
+        duration_minutes:
+          type: integer
+        status:
+          type: string
+          enum: [scheduled, in_progress, completed, cancelled]
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Participant'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateMeetingRequest:
+      type: object
+      required:
+        - title
+        - scheduled_at
+        - duration_minutes
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        scheduled_at:
+          type: string
+          format: date-time
+        duration_minutes:
+          type: integer
+          minimum: 5
+          maximum: 480
+        participants:
+          type: array
+          items:
+            type: string
+            format: email
+
+    UpdateMeetingRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        scheduled_at:
+          type: string
+          format: date-time
+        duration_minutes:
+          type: integer
+        status:
+          type: string
+          enum: [scheduled, in_progress, completed, cancelled]
+
+    MeetingList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Meeting'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    Participant:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [invited, accepted, declined, attended]
+
+    Workflow:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        nodes:
+          type: array
+          items:
+            type: object
+        edges:
+          type: array
+          items:
+            type: object
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                default: unauthorized
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                default: not_found

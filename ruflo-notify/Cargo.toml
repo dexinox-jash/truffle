@@ -1,0 +1,45 @@
+[package]
+name = "ruflo-notify"
+version = "1.0.0"
+edition = "2021"
+authors = ["Ruflo Team <team@ruflo.ai>"]
+description = "Notification service for email, Slack, webhooks"
+
+[dependencies]
+# Core
+tokio = { version = "1.35", features = ["full"] }
+axum = "0.7"
+
+# Email
+lettre = { version = "0.11", features = ["tokio1", "tokio1-native-tls", "builder", "smtp-transport"] }
+aws-sdk-sesv2 = "1.0"
+
+# HTTP
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+
+# Message Queue
+async-nats = "0.33"
+
+# Template
+tera = "1.19"
+handlebars = "5.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Database
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-native-tls"] }
+
+# Utilities
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+anyhow = "1.0"
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[[bin]]
+name = "ruflo-notify"
+path = "src/main.rs"

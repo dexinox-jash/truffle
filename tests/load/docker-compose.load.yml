@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  k6:
+    image: grafana/k6:latest
+    volumes:
+      - ./k6-script.js:/k6/script.js
+      - ./test-audio.wav:/k6/test-audio.wav
+    command: run /k6/script.js
+    environment:
+      - BASE_URL=http://ruflo-gateway:8080
+    networks:
+      - ruflo-network
+    depends_on:
+      - ruflo-gateway
+
+  # InfluxDB for metrics storage
+  influxdb:
+    image: influxdb:1.8
+    ports:
+      - "8086:8086"
+    environment:
+      - INFLUXDB_DB=k6
+    volumes:
+      - influxdb-data:/var/lib/influxdb
+    networks:
+      - ruflo-network
+
+  # Grafana for visualization
+  grafana-load:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana-datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - ruflo-network
+
+  # Include services under test
+  ruflo-gateway:
+    extends:
+      file: ../../docker-compose.phase3.yml
+      service: ruflo-gateway
+
+networks:
+  ruflo-network:
+    external: true
+
+volumes:
+  influxdb-data:

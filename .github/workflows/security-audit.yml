@@ -1,0 +1,27 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Daily
+  push:
+    paths:
+      - '**/Cargo.toml'
+      - '**/package.json'
+
+jobs:
+  rust-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+      - name: Audit
+        run: cd truffle-desktop && npm audit --audit-level=high

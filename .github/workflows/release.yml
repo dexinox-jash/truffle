@@ -1,0 +1,396 @@
+# Project Truffle - Release Automation
+# Section 6.2.3: Release Strategy
+# Canary (5% opt-in) -> Stable (auto-update) with rollback capability
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release Type'
+        required: true
+        default: 'canary'
+        type: choice
+        options:
+          - canary
+          - stable
+          - hotfix
+      version:
+        description: 'Version (e.g., 1.2.3)'
+        required: false
+        type: string
+      promote:
+        description: 'Promote canary to stable'
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '20'
+  RUST_VERSION: '1.75'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ============================================================================
+  # Validate & Prepare
+  # ============================================================================
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_type: ${{ steps.release_type.outputs.release_type }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine Release Type
+        id: release_type
+        run: |
+          if [ "${{ github.event.inputs.promote }}" == "true" ]; then
+            echo "release_type=stable" >> $GITHUB_OUTPUT
+          else
+            echo "release_type=${{ github.event.inputs.release_type }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine Version
+        id: version
+        run: |
+          if [ "${{ github.event.inputs.version }}" != "" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Get current version and bump
+            CURRENT=$(jq -r '.version' package.json)
+            
+            if [ "${{ steps.release_type.outputs.release_type }}" == "canary" ]; then
+              # Canary: append -canary.N
+              BASE=$(echo $CURRENT | sed 's/-canary.*//')
+              LAST_CANARY=$(git tag -l "v${BASE}-canary.*" | sort -V | tail -1 | sed 's/.*-canary.//')
+              NEXT_CANARY=$((LAST_CANARY + 1))
+              VERSION="${BASE}-canary.${NEXT_CANARY}"
+            elif [ "${{ steps.release_type.outputs.release_type }}" == "hotfix" ]; then
+              # Hotfix: patch bump
+              VERSION=$(echo $CURRENT | awk -F. '{$NF++;print}' OFS=.)
+            else
+              # Stable: minor bump
+              VERSION=$(echo $CURRENT | awk -F. '{$(NF-1)++;$NF=0;print}' OFS=.)
+            fi
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Generate Tag
+        id: tag
+        run: |
+          if [ "${{ steps.release_type.outputs.release_type }}" == "canary" ]; then
+            echo "tag=canary-${{ steps.version.outputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=v${{ steps.version.outputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update Version Files
+        if: steps.release_type.outputs.release_type != 'canary'
+        run: |
+          # Update package.json
+          jq '.version = "${{ steps.version.outputs.version }}"' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          
+          # Update Cargo.toml
+          sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' src-tauri/Cargo.toml
+          
+          # Update tauri.conf.json
+          jq '.version = "${{ steps.version.outputs.version }}"' src-tauri/tauri.conf.json > src-tauri/tauri.conf.json.tmp
+          mv src-tauri/tauri.conf.json.tmp src-tauri/tauri.conf.json
+
+      - name: Commit Version Bump
+        if: steps.release_type.outputs.release_type != 'canary'
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json
+          git commit -m "chore(release): bump version to ${{ steps.version.outputs.version }}"
+          git push
+
+      - name: Create Tag
+        run: |
+          git tag -a "${{ steps.tag.outputs.tag }}" -m "Release ${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.tag.outputs.tag }}"
+
+  # ============================================================================
+  # Build Desktop
+  # ============================================================================
+  build-desktop:
+    name: Build Desktop
+    needs: prepare
+    uses: ./.github/workflows/build-desktop.yml
+    with:
+      release_type: ${{ needs.prepare.outputs.release_type }}
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
+
+  # ============================================================================
+  # Build Mobile
+  # ============================================================================
+  build-mobile:
+    name: Build Mobile
+    needs: prepare
+    if: needs.prepare.outputs.release_type == 'stable'
+    uses: ./.github/workflows/build-mobile.yml
+    with:
+      release_type: beta
+      platform: both
+    secrets: inherit
+
+  # ============================================================================
+  # Generate Release Notes
+  # ============================================================================
+  release-notes:
+    name: Generate Release Notes
+    needs: [prepare, build-desktop]
+    runs-on: ubuntu-latest
+    outputs:
+      notes: ${{ steps.notes.outputs.notes }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Changelog
+        id: notes
+        run: |
+          if [ "${{ needs.prepare.outputs.release_type }}" == "canary" ]; then
+            echo "notes=Canary release for testing. Opt-in only." >> $GITHUB_OUTPUT
+          else
+            # Generate changelog from commits
+            LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+            
+            if [ -n "$LAST_TAG" ]; then
+              NOTES=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^(feat|fix|docs|style|refactor|test|chore)" || echo "- Various improvements and bug fixes")
+            else
+              NOTES="- Initial release"
+            fi
+            
+            echo "notes<<EOF" >> $GITHUB_OUTPUT
+            echo "$NOTES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+  # ============================================================================
+  # Create GitHub Release
+  # ============================================================================
+  create-release:
+    name: Create GitHub Release
+    needs: [prepare, build-desktop, build-mobile, release-notes]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: '*'
+
+      - name: Generate Checksums
+        run: |
+          cd artifacts
+          find . -type f ! -name "*.sha256" -exec sha256sum {} \; > ../checksums.txt
+
+      - name: Create Release Body
+        run: |
+          cat > release_body.md << 'EOF'
+          ## Truffle ${{ needs.prepare.outputs.release_type == 'canary' && 'Canary' || '' }} ${{ needs.prepare.outputs.version }}
+
+          ${{ needs.release-notes.outputs.notes }}
+
+          ### Installation
+
+          **macOS:**
+          - Download the `.dmg` file for your architecture (Intel or Apple Silicon)
+          - Universal binary also available
+
+          **Windows:**
+          - Download the `.msi` installer
+          - Or use the `.exe` portable version
+
+          **Linux:**
+          - Debian/Ubuntu: Download `.deb`
+          - Fedora/RHEL: Download `.rpm`
+          - Universal: Download `.AppImage`
+
+          ### Verification
+
+          Verify checksums:
+          ```bash
+          sha256sum -c checksums.txt
+          ```
+
+          ### Updates
+
+          ${{ needs.prepare.outputs.release_type == 'canary' && 'This is a canary release. Auto-updates are disabled. Download manually to test.' || 'Auto-updates are enabled. The app will check for updates on launch.' }}
+
+          ### Rollback
+
+          If you encounter issues, you can rollback to the previous version:
+          1. Download the previous release from GitHub
+          2. Install over the current version
+          3. Disable auto-updates in settings
+
+          ---
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: "Truffle ${{ needs.prepare.outputs.release_type == 'canary' && 'Canary' || '' }} ${{ needs.prepare.outputs.version }}"
+          body_path: release_body.md
+          draft: ${{ needs.prepare.outputs.release_type != 'canary' }}
+          prerelease: ${{ needs.prepare.outputs.release_type == 'canary' }}
+          files: |
+            artifacts/**/*
+            checksums.txt
+          fail_on_unmatched_files: false
+
+  # ============================================================================
+  # Deploy to CDN
+  # ============================================================================
+  deploy-cdn:
+    name: Deploy to CDN
+    needs: [prepare, create-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Release Assets
+        uses: robinraju/release-downloader@v1.8
+        with:
+          tag: ${{ needs.prepare.outputs.tag }}
+          fileName: '*'
+          out-file-path: 'release-assets'
+
+      - name: Upload to R2
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: |
+            # Upload to versioned path
+            r2 object put "truffle-releases/${{ needs.prepare.outputs.release_type }}/${{ needs.prepare.outputs.version }}/latest.json" --file release-assets/latest.json
+            
+            for file in release-assets/*; do
+              if [ -f "$file" ]; then
+                r2 object put "truffle-releases/${{ needs.prepare.outputs.release_type }}/${{ needs.prepare.outputs.version }}/$(basename $file)" --file "$file"
+              fi
+            done
+            
+            # Update latest symlink for stable releases
+            if [ "${{ needs.prepare.outputs.release_type }}" == "stable" ]; then
+              r2 object put "truffle-releases/stable/latest.json" --file release-assets/latest.json
+            fi
+
+      - name: Purge CDN Cache
+        run: |
+          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/purge_cache" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{
+              "files": [
+                "https://releases.truffle.io/${{ needs.prepare.outputs.release_type }}/latest.json",
+                "https://releases.truffle.io/${{ needs.prepare.outputs.release_type }}/*"
+              ]
+            }'
+
+  # ============================================================================
+  # Update Update Server
+  # ============================================================================
+  update-server:
+    name: Update Update Server
+    needs: [prepare, deploy-cdn]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure Update Server
+        run: |
+          # Update the update server with new release info
+          curl -X POST "https://api.truffle.io/v1/releases" \
+            -H "Authorization: Bearer ${{ secrets.TRUFFLE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{
+              "version": "${{ needs.prepare.outputs.version }}",
+              "channel": "${{ needs.prepare.outputs.release_type }}",
+              "rollout_percentage": ${{ needs.prepare.outputs.release_type == 'canary' && '5' || '100' }},
+              "mandatory": false,
+              "platforms": ["darwin", "windows", "linux"]
+            }'
+
+  # ============================================================================
+  # Monitor Rollout
+  # ============================================================================
+  monitor:
+    name: Monitor Rollout
+    needs: [prepare, update-server]
+    runs-on: ubuntu-latest
+    if: needs.prepare.outputs.release_type == 'stable'
+    steps:
+      - name: Wait for Rollout
+        run: |
+          echo "Monitoring rollout for 30 minutes..."
+          sleep 1800
+
+      - name: Check Error Rates
+        run: |
+          # Query Grafana for error rates
+          ERROR_RATE=$(curl -s "https://grafana.truffle.io/api/datasources/proxy/1/api/v1/query?query=truffle_error_rate" \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_API_KEY }}" | jq -r '.data.result[0].value[1] // "0"')
+          
+          if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
+            echo "::error::Error rate too high: $ERROR_RATE"
+            exit 1
+          fi
+          
+          echo "Error rate acceptable: $ERROR_RATE"
+
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#releases'
+          text: |
+            Truffle ${{ needs.prepare.outputs.release_type }} ${{ needs.prepare.outputs.version }} rollout monitoring complete!
+            
+            Error rate: Within acceptable limits
+            Rollout: 100% complete
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ============================================================================
+  # Notify
+  # ============================================================================
+  notify:
+    name: Notify
+    needs: [prepare, create-release, deploy-cdn, update-server]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#releases'
+          text: |
+            Truffle ${{ needs.prepare.outputs.release_type }} release ${{ needs.prepare.outputs.version }} ${{ job.status == 'success' && 'completed successfully!' || 'FAILED!' }}
+            
+            Version: ${{ needs.prepare.outputs.version }}
+            Tag: ${{ needs.prepare.outputs.tag }}
+            Release: https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare.outputs.tag }}
+            
+            ${{ job.status != 'success' && 'Please check the workflow logs for details.' || '' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -1,0 +1,31 @@
+[package]
+name = "ruflo-integration-tests"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full", "test-util"] }
+anyhow = "1.0"
+reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.6", features = ["v4"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Testing
+test-context = "0.3"
+async-trait = "0.1"
+
+# Database
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-native-tls"] }
+
+# Message Queue
+async-nats = "0.33"
+
+# Redis
+redis = { version = "0.24", features = ["tokio-comp"] }
+
+[dev-dependencies]
+pretty_assertions = "1.4"
+mockall = "0.12"

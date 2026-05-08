@@ -1,0 +1,179 @@
+# Phase 3: Production Services
+#
+# Services:
+# - ruflo-realtime: WebSocket streaming (port 3005)
+# - ruflo-auth: Authentication (port 3006)
+# - ruflo-gateway: API gateway (port 8080)
+# - ruflo-search: Search service (port 3007)
+# - ruflo-notify: Notifications (port 3008)
+# - ruflo-billing: Stripe billing (port 3009)
+# - elasticsearch: Search engine (port 9200)
+
+version: '3.8'
+
+services:
+  # Real-time WebSocket Service
+  ruflo-realtime:
+    build:
+      context: ./ruflo-realtime
+      dockerfile: Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      - RUST_LOG=info
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_URL=redis://redis:6379
+      - NATS_URL=nats://nats-1:4222
+    networks:
+      - ruflo-network
+    depends_on:
+      - redis
+      - nats-1
+
+  # Authentication Service
+  ruflo-auth:
+    build:
+      context: ./ruflo-auth
+      dockerfile: Dockerfile
+    ports:
+      - "3006:3006"
+    environment:
+      - RUST_LOG=info
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/ruflo
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - ruflo-network
+    depends_on:
+      - postgres
+      - redis
+
+  # API Gateway
+  ruflo-gateway:
+    build:
+      context: ./ruflo-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - RUST_LOG=info
+      - JWT_SECRET=${JWT_SECRET}
+    networks:
+      - ruflo-network
+    depends_on:
+      - ruflo-auth
+      - ruflo-audio
+      - ruflo-asr
+      - ruflo-storage
+      - ruflo-analysis
+
+  # Search Service
+  ruflo-search:
+    build:
+      context: ./ruflo-search
+      dockerfile: Dockerfile
+    ports:
+      - "3007:3007"
+    environment:
+      - RUST_LOG=info
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - USE_LOCAL_SEARCH=true
+    networks:
+      - ruflo-network
+    depends_on:
+      - elasticsearch
+
+  # Notifications Service
+  ruflo-notify:
+    build:
+      context: ./ruflo-notify
+      dockerfile: Dockerfile
+    ports:
+      - "3008:3008"
+    environment:
+      - RUST_LOG=info
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - FROM_EMAIL=${FROM_EMAIL}
+    networks:
+      - ruflo-network
+
+  # Billing Service
+  ruflo-billing:
+    build:
+      context: ./ruflo-billing
+      dockerfile: Dockerfile
+    ports:
+      - "3009:3009"
+    environment:
+      - RUST_LOG=info
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/ruflo
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+    networks:
+      - ruflo-network
+    depends_on:
+      - postgres
+
+  # Elasticsearch
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - ruflo-network
+
+  # Include Phase 2 services
+  ruflo-audio:
+    extends:
+      file: docker-compose.phase2.yml
+      service: ruflo-audio
+
+  ruflo-asr:
+    extends:
+      file: docker-compose.phase2.yml
+      service: ruflo-asr
+
+  ruflo-storage:
+    extends:
+      file: docker-compose.phase2.yml
+      service: ruflo-storage
+
+  ruflo-analysis:
+    extends:
+      file: docker-compose.phase2.yml
+      service: ruflo-analysis
+
+  ruflo-dashboard:
+    extends:
+      file: docker-compose.phase2.yml
+      service: ruflo-dashboard
+
+  postgres:
+    extends:
+      file: docker-compose.phase2.yml
+      service: postgres
+
+  redis:
+    extends:
+      file: docker-compose.phase2.yml
+      service: redis
+
+  nats-1:
+    extends:
+      file: vortex-infra/docker-compose.yml
+      service: nats-1
+
+volumes:
+  elasticsearch-data:
+
+networks:
+  ruflo-network:
+    driver: bridge

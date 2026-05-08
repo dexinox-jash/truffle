@@ -1,0 +1,359 @@
+# Project Truffle - Mobile Build Pipeline
+# Section 6.2.1: Mobile Build System
+# Fastlane builds for iOS/Android with TestFlight/Play Console deployment
+
+name: Build Mobile
+
+on:
+  push:
+    tags:
+      - 'mobile-v*'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - ios
+          - android
+          - both
+      release_type:
+        description: 'Release Type'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - internal
+          - beta
+          - production
+
+env:
+  NODE_VERSION: '20'
+  RUBY_VERSION: '3.2'
+  FASTLANE_SKIP_UPDATE_CHECK: 'true'
+  # iOS Secrets
+  # MATCH_PASSWORD, MATCH_GIT_URL, MATCH_GIT_BASIC_AUTHORIZATION
+  # APP_STORE_CONNECT_API_KEY_KEY_ID, APP_STORE_CONNECT_API_KEY_ISSUER_ID, APP_STORE_CONNECT_API_KEY_KEY
+  # Android Secrets
+  # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+
+concurrency:
+  group: build-mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # Prepare Build
+  # ============================================================================
+  prepare:
+    name: Prepare Build
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build_number: ${{ steps.build_number.outputs.build_number }}
+      release_type: ${{ steps.release_type.outputs.release_type }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/mobile-v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/mobile-v}"
+          else
+            VERSION=$(jq -r '.version' mobile/package.json)
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Generate Build Number
+        id: build_number
+        run: |
+          # Use GitHub run number + offset for build number
+          BUILD_NUMBER=$((${{ github.run_number }} + 1000))
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "Build number: $BUILD_NUMBER"
+
+      - name: Determine Release Type
+        id: release_type
+        run: |
+          if [ "${{ github.event.inputs.release_type }}" != "" ]; then
+            echo "release_type=${{ github.event.inputs.release_type }}" >> $GITHUB_OUTPUT
+          else
+            echo "release_type=beta" >> $GITHUB_OUTPUT
+          fi
+
+  # ============================================================================
+  # Build iOS
+  # ============================================================================
+  build-ios:
+    name: Build iOS
+    needs: prepare
+    runs-on: macos-latest
+    if: ${{ github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'both' || github.event.inputs.platform == '' }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+          working-directory: mobile/ios
+
+      - name: Setup CocoaPods
+        run: |
+          cd mobile/ios
+          bundle exec pod install
+
+      - name: Setup Fastlane
+        run: |
+          cd mobile/ios
+          gem install fastlane
+
+      - name: Setup SSH for Match
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.MATCH_SSH_KEY }}
+
+      - name: Decode App Store Connect API Key
+        run: |
+          mkdir -p ~/private_keys
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY_KEY }}" | base64 --decode > ~/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}.p8
+
+      - name: Install Dependencies
+        run: |
+          cd mobile
+          npm ci
+
+      - name: Sync Capacitor
+        run: |
+          cd mobile
+          npx cap sync ios
+
+      - name: Update Build Info
+        run: |
+          cd mobile/ios/App
+          agvtool new-version -all ${{ needs.prepare.outputs.build_number }}
+          agvtool new-marketing-version ${{ needs.prepare.outputs.version }}
+
+      - name: Run Fastlane
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_KEY_FILEPATH: ~/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}.p8
+          PILOT_APPLE_ID: ${{ secrets.APPLE_ID }}
+          PILOT_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          FASTLANE_PASSWORD: ${{ secrets.FASTLANE_PASSWORD }}
+          SLACK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          cd mobile/ios
+          
+          if [ "${{ needs.prepare.outputs.release_type }}" == "production" ]; then
+            fastlane release
+          elif [ "${{ needs.prepare.outputs.release_type }}" == "beta" ]; then
+            fastlane beta
+          else
+            fastlane internal
+          fi
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: mobile/ios/build/*.ipa
+
+      - name: Upload dSYM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-dsym
+          path: mobile/ios/build/*.app.dSYM.zip
+
+  # ============================================================================
+  # Build Android
+  # ============================================================================
+  build-android:
+    name: Build Android
+    needs: prepare
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.platform == 'android' || github.event.inputs.platform == 'both' || github.event.inputs.platform == '' }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+          working-directory: mobile/android
+
+      - name: Setup Fastlane
+        run: |
+          cd mobile/android
+          gem install fastlane
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > mobile/android/app/truffle.keystore
+
+      - name: Create local.properties
+        run: |
+          cat > mobile/android/local.properties << EOF
+          KEYSTORE_FILE=truffle.keystore
+          KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Install Dependencies
+        run: |
+          cd mobile
+          npm ci
+
+      - name: Sync Capacitor
+        run: |
+          cd mobile
+          npx cap sync android
+
+      - name: Update Build Info
+        run: |
+          cd mobile/android/app
+          sed -i "s/versionCode .*/versionCode ${{ needs.prepare.outputs.build_number }}/" build.gradle
+          sed -i "s/versionName .*/versionName \"${{ needs.prepare.outputs.version }}\"/" build.gradle
+
+      - name: Run Fastlane
+        env:
+          SUPPLY_JSON_KEY_DATA: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          SLACK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          cd mobile/android
+          
+          if [ "${{ needs.prepare.outputs.release_type }}" == "production" ]; then
+            fastlane deploy_production
+          elif [ "${{ needs.prepare.outputs.release_type }}" == "beta" ]; then
+            fastlane deploy_beta
+          else
+            fastlane deploy_internal
+          fi
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: mobile/android/app/build/outputs/apk/**/*.apk
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: mobile/android/app/build/outputs/bundle/**/*.aab
+
+  # ============================================================================
+  # Performance Budget Check (Mobile)
+  # Section 6.2.2: Bundle Size <50MB Mobile
+  # ============================================================================
+  performance-check:
+    name: Performance Budget Check
+    needs: [prepare, build-ios, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download iOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa
+          path: ios-artifacts
+
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-aab
+          path: android-artifacts
+
+      - name: Check Bundle Sizes
+        run: |
+          MOBILE_LIMIT=$((50 * 1024 * 1024))  # 50MB limit
+          
+          # Check iOS IPA
+          for ipa in ios-artifacts/*.ipa; do
+            if [ -f "$ipa" ]; then
+              SIZE=$(stat -c%s "$ipa")
+              NAME=$(basename "$ipa")
+              
+              if [ $SIZE -gt $MOBILE_LIMIT ]; then
+                echo "::error::iOS IPA $NAME exceeds 50MB limit: $(($SIZE / 1024 / 1024))MB"
+                exit 1
+              fi
+              
+              echo "iOS IPA $NAME: $(($SIZE / 1024 / 1024))MB ✓"
+            fi
+          done
+          
+          # Check Android AAB
+          for aab in android-artifacts/*.aab; do
+            if [ -f "$aab" ]; then
+              SIZE=$(stat -c%s "$aab")
+              NAME=$(basename "$aab")
+              
+              if [ $SIZE -gt $MOBILE_LIMIT ]; then
+                echo "::error::Android AAB $NAME exceeds 50MB limit: $(($SIZE / 1024 / 1024))MB"
+                exit 1
+              fi
+              
+              echo "Android AAB $NAME: $(($SIZE / 1024 / 1024))MB ✓"
+            fi
+          done
+
+  # ============================================================================
+  # Notify
+  # ============================================================================
+  notify:
+    name: Notify
+    needs: [prepare, build-ios, build-android, performance-check]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#mobile-releases'
+          text: |
+            Truffle Mobile ${{ needs.prepare.outputs.release_type }} build completed!
+            
+            Version: ${{ needs.prepare.outputs.version }}
+            Build Number: ${{ needs.prepare.outputs.build_number }}
+            iOS: ${{ needs.build-ios.result }}
+            Android: ${{ needs.build-android.result }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
