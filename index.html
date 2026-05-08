@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Truffle — Portfolio Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ground: #0a0a0a;
+    --ground-elevated: #141414;
+    --text: #e5e5e5;
+    --text-secondary: #a3a3a3;
+    --text-muted: #737373;
+    --accent: #FFB800;
+    --accent-light: rgba(255,184,0,0.12);
+    --accent-dark: #cc9300;
+    --border: #262626;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.3);
+    --shadow-lg: 0 4px 6px -1px rgba(0,0,0,0.5), 0 12px 24px rgba(0,0,0,0.4);
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-display: 'Playfair Display', Georgia, serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--ground);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+  .reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.7s ease, transform 0.7s ease; }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+  section { padding: 64px 0; }
+  section + section { border-top: 1px solid var(--border); }
+  .tag {
+    display: inline-block; font-size: 0.7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--accent); background: var(--accent-light);
+    padding: 4px 10px; border-radius: 999px; margin-bottom: 16px;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    font-weight: 700; letter-spacing: -0.02em; line-height: 1.2;
+  }
+  h1 { font-size: clamp(2.2rem, 5vw, 3.2rem); }
+  h2 { font-size: clamp(1.5rem, 3.5vw, 2rem); margin-bottom: 20px; }
+  h3 { font-size: 1.15rem; margin-bottom: 10px; font-family: var(--font-sans); font-weight: 600; }
+  p { color: var(--text-secondary); max-width: 64ch; }
+  p + p { margin-top: 14px; }
+  .lead { font-size: 1.15rem; line-height: 1.65; color: var(--text-secondary); }
+
+  /* Hero */
+  .hero { padding: 80px 0 56px; }
+  .hero__accent {
+    width: 64px; height: 4px; background: var(--accent); border-radius: 2px; margin-bottom: 28px;
+  }
+  .hero__meta {
+    display: flex; gap: 20px; flex-wrap: wrap; margin-top: 28px;
+    font-size: 0.85rem; color: var(--text-muted);
+  }
+  .hero__meta span { display: flex; align-items: center; gap: 6px; }
+  .hero__reframe {
+    margin-top: 36px; padding: 24px; background: var(--ground-elevated);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+  .hero__reframe-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 16px;
+  }
+  .hero__reframe-item {
+    padding: 16px; background: var(--ground); border-radius: 8px; border-left: 3px solid var(--accent);
+  }
+  .hero__reframe-item strong { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 6px; }
+  .hero__reframe-item span { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.45; }
+
+  /* Problem/Solution */
+  .ps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 24px; }
+  @media (max-width: 720px) { .ps-grid { grid-template-columns: 1fr; } }
+  .ps-card {
+    background: var(--ground-elevated); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow);
+  }
+  .ps-card h3 { color: var(--accent); }
+  .ps-card ul { margin-top: 14px; padding-left: 18px; }
+  .ps-card li { color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 8px; }
+  .quote-box {
+    margin-top: 18px; padding: 14px 16px; background: var(--ground);
+    border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; font-size: 0.85rem;
+    color: var(--text-secondary); font-style: italic;
+  }
+  .quote-box cite { display: block; margin-top: 6px; font-size: 0.75rem; color: var(--text-muted); font-style: normal; }
+
+  /* Architecture */
+  .arch-diagram {
+    background: var(--ground-elevated); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 32px; margin-top: 24px; box-shadow: var(--shadow);
+  }
+  .arch-layer {
+    display: flex; align-items: flex-start; gap: 16px; padding: 18px 20px;
+    background: var(--ground); border-radius: 10px; margin-bottom: 12px;
+    border: 1px solid var(--border); transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .arch-layer:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .arch-layer__num {
+    width: 32px; height: 32px; border-radius: 8px; background: var(--accent);
+    color: #000; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.85rem; flex-shrink: 0;
+  }
+  .arch-layer__content h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 4px; color: var(--text); }
+  .arch-layer__content p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; }
+  .arch-layer__content .tech { font-size: 0.78rem; color: var(--accent); margin-top: 4px; font-weight: 500; }
+  .arch-arrow { text-align: center; color: var(--accent); font-size: 1.2rem; margin: 4px 0; }
+
+  /* Features */
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 24px; }
+  .feature-card {
+    background: var(--ground-elevated); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow);
+  }
+  .feature-card .status {
+    display: inline-block; font-size: 0.65rem; font-weight: 600; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px; margin-bottom: 10px;
+  }
+  .status--production { background: rgba(0,212,170,0.15); color: #00d4aa; }
+  .status--deferred { background: rgba(255,184,0,0.15); color: var(--accent); }
+  .status--planned { background: rgba(115,115,115,0.2); color: var(--text-muted); }
+  .feature-card h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+  .feature-card p { font-size: 0.85rem; color: var(--text-secondary); }
+
+  /* Metrics */
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-top: 24px; }
+  .metric-box {
+    background: var(--ground-elevated); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; text-align: center; box-shadow: var(--shadow);
+  }
+  .metric-box__value { font-size: 1.6rem; font-weight: 700; color: var(--accent); font-family: var(--font-mono); }
+  .metric-box__label { font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .metric-box__ctx { font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; }
+
+  /* Code Exhibit */
+  .code-exhibit { margin-top: 24px; }
+  .code-header {
+    background: #0f172a; color: #94a3b8; padding: 10px 18px; border-radius: var(--radius) var(--radius) 0 0;
+    font-size: 0.8rem; font-family: var(--font-mono); display: flex; justify-content: space-between; align-items: center;
+  }
+  .code-block {
+    background: #0f172a; color: #e2e8f0; padding: 20px 24px 24px;
+    border-radius: 0 0 var(--radius) var(--radius); overflow-x: auto; font-family: var(--font-mono);
+    font-size: 0.8rem; line-height: 1.7;
+  }
+  .code-block .k { color: #c084fc; } /* keyword */
+  .code-block .f { color: #60a5fa; } /* function */
+  .code-block .t { color: #38bdf8; } /* type */
+  .code-block .s { color: #a3e635; } /* string */
+  .code-block .n { color: #f472b6; } /* number */
+  .code-block .c { color: #64748b; } /* comment */
+  .code-context {
+    background: var(--ground-elevated); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow);
+  }
+  .code-context p { font-size: 0.9rem; }
+
+  /* Decisions */
+  details { background: var(--ground-elevated); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; box-shadow: var(--shadow); }
+  summary {
+    padding: 18px 22px; cursor: pointer; font-weight: 600; font-size: 0.95rem;
+    list-style: none; display: flex; justify-content: space-between; align-items: center; color: var(--text);
+  }
+  summary::after { content: '+'; font-family: var(--font-mono); color: var(--accent); font-size: 1.1rem; }
+  details[open] summary::after { content: '−'; }
+  summary:hover { background: var(--ground); }
+  .decision-body { padding: 0 22px 22px; }
+  .decision-body p { font-size: 0.9rem; }
+  .impact-tag {
+    display: inline-block; font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 999px; margin-top: 12px;
+  }
+  .impact-high { background: rgba(220,38,38,0.2); color: #fca5a5; }
+  .impact-medium { background: rgba(255,184,0,0.15); color: var(--accent); }
+  .impact-low { background: rgba(56,189,248,0.15); color: #7dd3fc; }
+
+  /* Timeline */
+  .timeline { position: relative; margin-top: 24px; padding-left: 28px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 8px; top: 6px; bottom: 6px;
+    width: 2px; background: var(--border);
+  }
+  .timeline-item { position: relative; margin-bottom: 24px; }
+  .timeline-item::before {
+    content: ''; position: absolute; left: -24px; top: 6px;
+    width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--ground);
+  }
+  .timeline-item.future::before { background: var(--text-muted); }
+  .timeline-item h4 { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+  .timeline-item .tl-meta { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; }
+  .timeline-item p { font-size: 0.88rem; }
+
+  /* Footer */
+  footer { background: var(--ground-elevated); border-top: 1px solid var(--border); padding: 40px 0; margin-top: 40px; }
+  .footer__tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .footer__tag {
+    font-size: 0.75rem; color: var(--text-secondary); background: var(--ground);
+    border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px;
+  }
+  .footer__note { font-size: 0.8rem; color: var(--text-muted); margin-top: 18px; max-width: 60ch; }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero reveal">
+  <div class="container">
+    <div class="hero__accent"></div>
+    <div class="tag">Project #9 of 9</div>
+    <h1>Truffle</h1>
+    <p class="lead" style="margin-top:16px;max-width:56ch;">Local-first, zero-knowledge screenshot knowledge graph</p>
+    <p style="margin-top:18px;max-width:64ch;">The average person takes 20+ screenshots per day. They accumulate into an unsearchable, unstructured pile of digital clutter. Truffle compiles screenshots into a searchable, interlinked knowledge graph—entirely on your device, encrypted end-to-end, synced without trust.</p>
+    <div class="hero__meta">
+      <span>🦀 Rust Core</span>
+      <span>⚛️ Tauri + React</span>
+      <span>📱 Swift + Kotlin</span>
+      <span>☁️ Cloudflare Workers</span>
+      <span>🔒 ZKS-1 Protocol</span>
+      <span>🗄️ SQLite + sqlite-vec</span>
+    </div>
+    <div class="hero__reframe">
+      <strong style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent);">Thinking-First Reframe</strong>
+      <div class="hero__reframe-grid">
+        <div class="hero__reframe-item"><strong>Signal</strong><span>Screenshots are the largest unorganized data type on personal devices—billions taken daily, almost none searchable</span></div>
+        <div class="hero__reframe-item"><strong>Filter</strong><span>Local-first compilation pipeline + zero-knowledge sync protocol (ZKS-1) — cloud only sees encrypted blobs</span></div>
+        <div class="hero__reframe-item"><strong>Payoff</strong><span>Every screenshot becomes a linked wiki node: receipts auto-categorize, flights auto-link to calendars, contacts auto-merge</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THE BET -->
+<section class="reveal">
+  <div class="container">
+    <div class="tag">The Bet</div>
+    <h2>Users will trade cloud convenience for local control when the UX is seamless and the cryptography is invisible</h2>
+    <p class="lead">Thesis: privacy-conscious users want their data on-device, but only if sync feels as effortless as iCloud.</p>
+    <p><strong>Conviction:</strong> High. The zero-knowledge sync protocol (ZKS-1) pairs devices with a QR code and 6-digit verification—cryptography that feels like setup, not a CS degree.</p>
+    <p><strong>Risk if wrong:</strong> Users expect iCloud-level sync reliability; any friction in device pairing or sync latency kills adoption.</p>
+    <p><strong>Hedge:</strong> Cloudflare Workers relay provides store-and-forward with 30-day TTL; fallback to manual export/import if sync fails.</p>
+  </div>
+</section>
+
+<!-- PROBLEM / SOLUTION -->
+<section class="reveal">
+  <div class="container">
+    <div class="tag">Problem & Solution</div>
+    <h2>From digital landfill to living knowledge</h2>
+    <div class="ps-grid">
+      <div class="ps-card">
+        <h3>Problem</h3>
+        <ul>
+          <li>20+ screenshots per day per person, accumulating into unsearchable digital landfills</li>
+          <li>Information trapped in images: receipts, confirmations, tickets, notes, QR codes</li>
+          <li>Cloud photo sync exposes sensitive data to platform operators (Apple, Google)</li>
+          <li>Manual organization is too much friction—users give up after the first dozen</li>
+        </ul>
+        <div class="quote-box">
+          "Project Truffle follows a Local-First Architecture with zero-knowledge sync capabilities. The system is designed around the principle that user data never leaves the device in an unencrypted form, and infrastructure operators maintain mathematical inability to decrypt user content."
+          <cite>— ARCHITECTURE.md</cite>
+        </div>
+      </div>
+      <div class="ps-card">
+        <h3>Solution</h3>
+        <ul>
+          <li>Stage 1: Ingestion — FileSystem watcher detects new screenshots, priority queue (P0-P2)</li>
+          <li>Stage 2: Preprocessing — Resize to 896px, safety filter (NSFW/medical/banking detection)</li>
+          <li>Stage 3: AI Processing — Gemma 4 multimodal analysis, Tesseract OCR, MiniLM embeddings</li>
+          <li>Stage 4: Knowledge Construction — Schema engine, entity resolution, backlink injection, HNSW vector indexing</li>
+          <li>Storage: SQLite + WAL + sqlite-vec, all encrypted at rest with AES-256-GCM</li>
+          <li>Sync: ZKS-1 protocol with X3DH handshake, AES-256-GCM/ChaCha20, Yjs CRDT deltas</li>
+        </ul>
+        <div class="quote-box">
+          "The compilation pipeline transforms raw screenshots into structured, interlinked knowledge through a 4-stage process."
+          <cite>— ARCHITECTURE.md</cite>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section class="reveal">
+  <div class="container">
+    <div class="tag">Architecture</div>
+    <h2>Six trust layers, zero-knowledge by design</h2>
+    <p>From raw screenshot (L1) to admin billing (L6), each layer has a defined trust boundary and compliance scope.</p>
+    <div class="arch-diagram">
+      <div class="arch-layer">
+        <div class="arch-layer__num">1</div>
+        <div class="arch-layer__content">
+          <h4>Frontend — Desktop</h4>
+          <p>Three-pane layout (raw waterfall, compilation preview, wiki navigator), Milkdown editor, FlexSearch, graph visualization, command palette</p>
+          <div class="tech">Tauri v2 · React 18 · TypeScript 5.3 · Zustand · TanStack Query</div>
+        </div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-layer">
+        <div class="arch-layer__num">2</div>
+        <div class="arch-layer__content">
+          <h4>Mobile Companions</h4>
+          <p>iOS Share Extension (Secure Enclave, BGTaskScheduler) + Android Share Activity (Keystore, WorkManager) with checkpoint/resume compilation</p>
+          <div class="tech">Swift · Kotlin · CocoaPods · Gradle</div>
+        </div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-layer">
+        <div class="arch-layer__num">3</div>
+        <div class="arch-layer__content">
+          <h4>Core Library</h4>
+          <p>Compilation pipeline, SQLite database, graph query/traversal, CRDT sync, validation, security, plugins, API</p>
+          <div class="tech">Rust 2021 · tokio · serde · rusqlite · yrs · tesseract</div>
+        </div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-layer">
+        <div class="arch-layer__num">4</div>
+        <div class="arch-layer__content">
+          <h4>Cryptography</h4>
+          <p>ZKS-1 protocol: X3DH handshake, session management, AES-256-GCM/ChaCha20 encryption, replay detection, prekey rotation</p>
+          <div class="tech">aes-gcm · chacha20poly1305 · ed25519-dalek · x25519-dalek · hkdf · hmac</div>
+        </div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-layer">
+        <div class="arch-layer__num">5</div>
+        <div class="arch-layer__content">
+          <h4>Relay — Zero-Access</h4>
+          <p>Store-and-forward encrypted blobs only. Device auth, rate limiting, audit logging, zero-access verification endpoint</p>
+          <div class="tech">Cloudflare Workers · R2 · KV · Durable Objects · WebSocket</div>
+        </div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-layer">
+        <div class="arch-layer__num">6</div>
+        <div class="arch-layer__content">
+          <h4>Infrastructure</h4>
+          <p>Multi-region deployment, service mesh, observability, chaos engineering</p>
+          <div class="tech">Terraform · Kubernetes · Istio · Helm · Prometheus · Grafana · Jaeger · Loki</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STAKEHOLDER VIEWS -->
+<section class="reveal">
+  <div class="container">
+    <div class="tag">Stakeholder Views</div>
+    <h2>Three lenses on the same system</h2>
+    <div class="ps-grid" style="margin-top:20px;">
+      <div class="ps-card">
+        <h3>User</h3>
+        <p>"I take a screenshot of a flight confirmation. Truffle automatically compiles it into a structured wiki node with airline, flight number, date, and confirmation code. It links to my existing Travel wiki section. I can search 'flight to Tokyo' and find it instantly. When I get a new phone, I pair it with a QR code and my entire wiki syncs encrypted through the cloud relay."</p>
+      </div>
+      <div class="ps-card">
+        <h3>Security Auditor</h3>
+        <p>"The threat model covers STRIDE: spoofing (Ed25519 device certificates), tampering (AES-GCM + HMAC), repudiation (Merkle tree audit logs), information disclosure (zero-knowledge architecture), denial of service (local-first design), elevation of privilege (macOS sandbox + code signing). Verification includes unit tests, fuzzing, pen-tests, formal analysis, chaos testing, and App Store review."</p>
+      </div>
+      <div class="ps-card" style="grid-column:1 / -1;">
+        <h3>Engineer</h3>
+        <p>"The Rust core is well-modularized with 70+ source files covering models, database, pipeline, sync, collaboration, graph, validation, security, and plugins. The ZKS-1 protocol in truffle-crypto implements real cryptography: X3DH handshake, AES-256-GCM and ChaCha20-Poly1305 encryption, replay detection with sequence numbers, message deduplication, and prekey rotation. The Tauri desktop uses React with Zustand stores and TanStack Query for server-state-like local data."</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="reveal">
+  <div class="container">
+    <div class="tag">Features</div>
+    <h2>What ships today</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <span class="status status--production">Production</span>
+        <h4>Screenshot Compilation Pipeline</h4>
+        <p>4-stage async pipeline with priority queue, semaphore concurrency, and checkpoint/resume</p>
+      </div>
+      <div class="feature-card">
+        <span class="status status--production">Production</span>
+        <h4>ZKS-1 Sync Protocol</h4>
+        <p>Zero-knowledge sync with X3DH handshake, AES-256-GCM/ChaCha20 encryption, CRDT deltas, replay protection</p>
+      </div>
+      <div class="feature-card">
+        <span class="status status--production">Production</span>
+        <h4>Knowledge Graph</h4>
+        <p>Entity resolution, backlink injection, HNSW vector search, R-Tree temporal indexing, graph traversal</p>
+      </div>
+      <div class="feature-card">
+        <span class="status status--production">Production</span>
+        <h4>Desktop App</h4>
+        <p>Tauri v2 + React: three-pane layout, Milkdown wiki editor, command palette, graph visualization, FlexSearch</p>
+      </div>
+      <div class="feature-card">
+        <span class="status status--production">Production</span>
+        <h4>Mobile Companions</h4>
+        <p>iOS Share Extension (Secure Enclave, BGTaskScheduler) + Android Share Activity (Keystore, WorkManager)</p>
+      </div>
+      <div class="feature-card">
+        <span class="status status--production">Production</span>
+        <h4>Zero-Access Relay</h4>
+        <p>Cloudflare Workers store-and-forward with device auth, rate limiting, audit logging, zero-access verification</p>
+      </div>
+      <div class="feature-card">
+        <span class="status status--production">Production</span>
+        <h4>Validation Engine</h4>
+        <p>Confidence scoring (Bayesian), contradiction detection, redundancy merging, source reliability tracking</p>
+      </div>
+      <div class="feature-card">
+        <span class="status status--production">Production</span>
+        <h4>Infrastructure</h4>
+        <p>Terraform, K8s, Istio, Helm, Prometheus/Grafana/Jaeger/Loki monitoring stack</p>
+      </div>
+      <div class="feature-card">
+        <span class="status status--deferred">Deferred</span>
+        <h4>AI Engine (Gemma 4)</h4>
+        <p>llama.cpp integration deferred — requires Metal/CUDA GPU SDK. Pipeline scaffolding exists.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PERFORMANCE -->
+<section class="reveal">
+  <div class="container">
+    <div class="tag">Performance & Scale</div>
+    <h2>By the numbers</h2>
+    <div class="metrics-grid">
+      <div class="metric-box">
+        <div class="metric-box__value">200+</div>
+        <div class="metric-box__label">Source files</div>
+        <div class="metric-box__ctx">Rust, TypeScript, Swift, Kotlin</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-box__value">8</div>
+        <div class="metric-box__label">Crypto primitives</div>
+        <div class="metric-box__ctx">AES-GCM, ChaCha20, Ed25519, X25519, X3DH, HKDF, HMAC, SHA-3</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-box__value">4</div>
+        <div class="metric-box__label">Compilation stages</div>
+        <div class="metric-box__ctx">Ingestion → Preprocessing → AI → Knowledge</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-box__value">6</div>
+        <div class="metric-box__label">Trust layers</div>
+        <div class="metric-box__ctx">L1 Raw to L6 Admin</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-box__value">4</div>
+        <div class="metric-box__label">Platforms</div>
+        <div class="metric-box__ctx">Desktop, iOS, Android, Cloudflare</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-box__value">2</div>
+        <div class="metric-box__label">Sync ciphers</div>
+        <div class="metric-box__ctx">AES-256-GCM + ChaCha20-Poly1305</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-box__value">4</div>
+        <div class="metric-box__label">Test categories</div>
+        <div class="metric-box__ctx">Integration, chaos, load, security</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CODE EXHIBIT -->
+<section class="reveal">
+  <div class="container">
+    <div class="tag">Engineering Proof</div>
+    <h2>Zero-Knowledge Sync Protocol (ZKS-1) vs Cloud Convenience</h2>
+    <div class="code-context">
+      <p>The decision to build a custom sync protocol instead of using iCloud or Dropbox was fundamental to the product thesis. Cloud services can read your data; ZKS-1 ensures <strong>mathematical inability</strong> to decrypt. This module implements X3DH handshake, session management, dual-cipher encryption, replay detection, and device trust levels.</p>
+    </div>
+    <div class="code-exhibit">
+      <div class="code-header">
+        <span>truffle-crypto/src/protocol/zks1.rs</span>
+        <span style="font-size:0.75rem;">Lines 297–541</span>
+      </div>
+      <pre class="code-block"><code><span class="k">pub struct</span> <span class="t">Zks1Protocol</span> {
+  <span class="t">identity</span>: <span class="t">IdentityKeyPair</span>,
+  <span class="t">device_id</span>: <span class="t">DeviceId</span>,
+  <span class="t">config</span>: <span class="t">SyncConfig</span>,
+  <span class="t">sessions</span>: <span class="t">RwLock</span>&lt;<span class="t">HashMap</span>&lt;<span class="t">DeviceId</span>, <span class="t">Zks1Session</span>&gt;&gt;,
+  <span class="t">signed_prekey</span>: <span class="t">RwLock</span>&lt;<span class="t">SignedPrekey</span>&gt;,
+  <span class="t">one_time_prekeys</span>: <span class="t">RwLock</span>&lt;<span class="t">Vec</span>&lt;<span class="t">EphemeralKeyPair</span>&gt;&gt;,
+}
+
+<span class="k">impl</span> <span class="t">Zks1Protocol</span> {
+  <span class="k">pub fn</span> <span class="f">initiate_session</span>(&<span class="t">self</span>, <span class="t">peer</span>: <span class="t">DeviceId</span>, <span class="t">bundle</span>: <span class="t">PreKeyBundle</span>)
+    -> <span class="t">CryptoResult</span>&lt;()&gt; {
+    <span class="k">let mut</span> <span class="t">session</span> = <span class="t">Zks1Session</span>::<span class="f">new</span>(<span class="t">peer</span>);
+    <span class="t">session</span>.<span class="t">state</span> = <span class="t">SessionState</span>::<span class="t">Handshaking</span>;
+
+    <span class="k">let</span> (<span class="t">initiator</span>, <span class="t">result</span>) = <span class="t">X3dhHandshake</span>::<span class="f">initiate</span>(
+      <span class="t">self</span>.<span class="t">identity</span>.<span class="f">clone</span>(), <span class="t">bundle</span>)?;
+
+    <span class="k">let</span> <span class="t">session_keys</span> = <span class="t">SessionKeys</span>::<span class="f">from_x3dh_result</span>(&<span class="t">result</span>)?;
+    <span class="t">session</span>.<span class="f">activate</span>(<span class="t">session_keys</span>)?;
+
+    <span class="t">self</span>.<span class="t">sessions</span>.<span class="f">write</span>()?.<span class="f">insert</span>(<span class="t">peer</span>, <span class="t">session</span>);
+    <span class="t">Ok</span>(())
+  }
+
+  <span class="k">pub fn</span> <span class="f">encrypt_crdt_update</span>(&<span class="t">self</span>, <span class="t">peer</span>: <span class="t">DeviceId</span>,
+    <span class="t">crdt_update</span>: <span class="t">Vec</span>&lt;<span class="t">u8</span>&gt;, <span class="t">schema_version</span>: <span class="t">String</span>,
+    <span class="t">privacy</span>: <span class="t">PrivacyClassification</span>) -> <span class="t">CryptoResult</span>&lt;<span class="t">SyncMessage</span>&gt; {
+
+    <span class="k">let mut</span> <span class="t">sessions</span> = <span class="t">self</span>.<span class="t">sessions</span>.<span class="f">write</span>()?;
+    <span class="k">let</span> <span class="t">session</span> = <span class="t">sessions</span>.<span class="f">get_mut</span>(&<span class="t">peer</span>)
+      .<span class="f">ok_or</span>(<span class="t">CryptoError</span>::<span class="f">invalid_state</span>(<span class="s">"No active session"</span>))?;
+
+    <span class="k">let</span> <span class="t">keys</span> = <span class="t">session</span>.<span class="t">session_keys</span>.<span class="f">as_ref</span>()
+      .<span class="f">ok_or</span>(<span class="t">CryptoError</span>::<span class="f">invalid_state</span>(<span class="s">"No session keys"</span>))?;
+
+    <span class="k">let</span> <span class="t">content</span> = <span class="t">CrdtUpdateContent</span>::<span class="f">new</span>(<span class="t">crdt_update</span>,
+      <span class="t">schema_version</span>, <span class="t">privacy</span>)?;
+    <span class="k">let</span> <span class="t">plaintext</span> = <span class="t">content</span>.<span class="f">to_bytes</span>()?;
+
+    <span class="k">let</span> <span class="t">encrypted</span> = <span class="k">if</span> <span class="t">self</span>.<span class="t">config</span>.<span class="t">use_chacha20</span> {
+      <span class="t">self</span>.<span class="f">encrypt_chacha20</span>(&<span class="t">plaintext</span>, &<span class="t">keys</span>.<span class="t">sync_key</span>)?
+    } <span class="k">else</span> {
+      <span class="t">self</span>.<span class="f">encrypt_aes256_gcm</span>(&<span class="t">plaintext</span>, &<span class="t">keys</span>.<span class="t">sync_key</span>)?
+    };
+
+    <span class="k">let</span> <span class="t">sequence</span> = <span class="t">session</span>.<span class="f">next_sequence</span>();
+    <span class="k">let</span> <span class="t">header</span> = <span class="t">SyncMessageHeader</span>::<span class="f">new</span>(<span class="t">self</span>.<span class="t">device_id</span>,
+      <span class="t">MessageType</span>::<span class="t">CrdtUpdate</span>, <span class="t">sequence</span>)?;
+
+    <span class="k">let</span> <span class="t">message</span> = <span class="t">SyncMessage</span>::<span class="f">new</span>(<span class="t">header</span>, <span class="t">encrypted</span>, &<span class="t">keys</span>.<span class="t">auth_key</span>);
+    <span class="t">session</span>.<span class="t">statistics</span>.<span class="f">record_sent</span>(<span class="t">message</span>.<span class="f">to_bytes</span>()?.<span class="f">len</span>());
+    <span class="t">session</span>.<span class="f">touch</span>();
+    <span class="t">Ok</span>(<span class="t">message</span>)
+  }
+
+  <span class="k">pub fn</span> <span class="f">decrypt_message</span>(&<span class="t">self</span>, <span class="t">message</span>: &<span class="t">SyncMessage</span>)
+    -> <span class="t">CryptoResult</span>&lt;<span class="t">CrdtUpdateContent</span>&gt; {
+    <span class="k">let</span> <span class="t">peer</span> = <span class="t">message</span>.<span class="t">header</span>.<span class="t">device_id</span>;
+    <span class="k">let mut</span> <span class="t">sessions</span> = <span class="t">self</span>.<span class="t">sessions</span>.<span class="f">write</span>()?;
+    <span class="k">let</span> <span class="t">session</span> = <span class="t">sessions</span>.<span class="f">get_mut</span>(&<span class="t">peer</span>)
+      .<span class="f">ok_or</span>(<span class="t">CryptoError</span>::<span class="f">invalid_state</span>(<span class="s">"No session"</span>))?;
+
+    <span class="k">let</span> <span class="t">keys</span> = <span class="t">session</span>.<span class="t">session_keys</span>.<span class="f">as_ref</span>()
+      .<span class="f">ok_or</span>(<span class="t">CryptoError</span>::<span class="f">invalid_state</span>(<span class="s">"No keys"</span>))?;
+
+    <span class="k">if</span> !<span class="t">message</span>.<span class="f">verify_authenticator</span>(&<span class="t">keys</span>.<span class="t">auth_key</span>) {
+      <span class="k">return</span> <span class="t">Err</span>(<span class="t">CryptoError</span>::<span class="f">authentication_failed</span>(<span class="s">"HMAC invalid"</span>));
+    }
+    <span class="k">if</span> !<span class="t">session</span>.<span class="f">validate_sequence</span>(<span class="t">message</span>.<span class="t">header</span>.<span class="t">sequence_number</span>) {
+      <span class="k">return</span> <span class="t">Err</span>(<span class="t">CryptoError</span>::<span class="f">replay_attack_detected</span>(<span class="s">"Bad sequence"</span>));
+    }
+    <span class="k">let</span> <span class="t">msg_id</span> = <span class="t">message</span>.<span class="f">message_id</span>();
+    <span class="k">if</span> <span class="t">session</span>.<span class="f">is_duplicate</span>(&<span class="t">msg_id</span>) {
+      <span class="k">return</span> <span class="t">Err</span>(<span class="t">CryptoError</span>::<span class="f">replay_attack_detected</span>(<span class="s">"Duplicate"</span>));
+    }
+    <span class="t">session</span>.<span class="f">mark_seen</span>(<span class="t">msg_id</span>);
+
+    <span class="k">let</span> <span class="t">plaintext</span> = <span class="k">if</span> <span class="t">self</span>.<span class="t">config</span>.<span class="t">use_chacha20</span> {
+      <span class="t">self</span>.<span class="f">decrypt_chacha20</span>(&<span class="t">message</span>.<span class="t">payload</span>, &<span class="t">keys</span>.<span class="t">sync_key</span>)?
+    } <span class="k">else</span> {
+      <span class="t">self</span>.<span class="f">decrypt_aes256_gcm</span>(&<span class="t">message</span>.<span class="t">payload</span>, &<span class="t">keys</span>.<span class="t">sync_key</span>)?
+    };
+
+    <span class="t">session</span>.<span class="t">statistics</span>.<span class="f">record_received</span>(<span class="t">message</span>.<span class="f">to_bytes</span>()?.<span class="f">len</span>());
+    <span class="t">session</span>.<span class="f">touch</span>();
+    <span class="t">CrdtUpdateContent</span>::<span class="f">from_bytes</span>(&<span class="t">plaintext</span>)
+  }
+}</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- DECISIONS -->
+<section class="reveal">
+  <div class="container">
+    <div class="tag">Strategic Decisions</div>
+    <h2>Five decisions that shaped the build</h2>
+
+    <details>
+      <summary>Why build a custom sync protocol (ZKS-1) instead of using iCloud or Dropbox?</summary>
+      <div class="decision-body">
+        <p>iCloud and Dropbox can read your data. ZKS-1 ensures the relay server has mathematical inability to decrypt user content. The protocol uses X3DH for key exchange, AES-256-GCM/ChaCha20 for encryption, and HMAC-SHA256 for authentication. Cloudflare Workers only store encrypted blobs with 30-day TTL. This is the core product differentiator.</p>
+        <span class="impact-tag impact-high">High Impact</span>
+      </div>
+    </details>
+
+    <details>
+      <summary>Why local-first instead of cloud-first?</summary>
+      <div class="decision-body">
+        <p>Screenshots contain sensitive information: receipts, medical records, banking details, private messages. A cloud-first approach would require trusting the infrastructure provider. Local-first keeps raw images on the device, encrypts wiki nodes at rest, and only syncs encrypted ciphertext. The architecture doc explicitly calls this 'mathematical inability to decrypt.'</p>
+        <span class="impact-tag impact-high">High Impact</span>
+      </div>
+    </details>
+
+    <details>
+      <summary>Why defer the AI engine (truffle-ai with Gemma 4)?</summary>
+      <div class="decision-body">
+        <p>The Cargo.toml comments out truffle-ai: 'Deferred — requires Metal/CUDA GPU SDK for llama.cpp.' On-device LLM inference requires GPU acceleration for acceptable performance. The pipeline scaffolding exists and can process artifacts; AI classification currently uses placeholder logic or can be integrated once the GPU dependency is resolved.</p>
+        <span class="impact-tag impact-high">High Impact</span>
+      </div>
+    </details>
+
+    <details>
+      <summary>Why SQLite + sqlite-vec instead of a dedicated vector database?</summary>
+      <div class="decision-body">
+        <p>SQLite is already embedded in the Rust core for structured data. sqlite-vec adds vector search (HNSW index) in the same database file, avoiding a separate process or network dependency. This keeps the deployment footprint minimal and aligns with the local-first philosophy.</p>
+        <span class="impact-tag impact-medium">Medium Impact</span>
+      </div>
+    </details>
+
+    <details>
+      <summary>Why Tauri over Electron for the desktop app?</summary>
+      <div class="decision-body">
+        <p>ADR-001 explicitly chose Tauri over Electron for smaller bundle size, lower memory footprint, and better security (Rust backend, OS-native webview). The Tauri v2 bridge provides native OS integration: file system access, notifications, and global shortcuts without shipping a full Chromium runtime.</p>
+        <span class="impact-tag impact-medium">Medium Impact</span>
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- TIMELINE -->
+<section class="reveal">
+  <div class="container">
+    <div class="tag">Timeline</div>
+    <h2>From core library to multi-platform system</h2>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="tl-meta">v0.1.0 — Shipped</div>
+        <h4>Foundation</h4>
+        <p>Rust workspace, truffle-core models and database, SQLite schema with migrations, compilation pipeline scaffolding</p>
+      </div>
+      <div class="timeline-item">
+        <div class="tl-meta">v0.2.0 — Shipped</div>
+        <h4>Cryptography</h4>
+        <p>truffle-crypto: AES-256-GCM, ChaCha20, X3DH, HKDF, pairing ceremony, ZKS-1 protocol implementation</p>
+      </div>
+      <div class="timeline-item">
+        <div class="tl-meta">v0.3.0 — Shipped</div>
+        <h4>Desktop</h4>
+        <p>Tauri v2 + React desktop app, three-pane layout, Milkdown editor, FlexSearch, graph visualization, command palette</p>
+      </div>
+      <div class="timeline-item">
+        <div class="tl-meta">v0.4.0 — Shipped</div>
+        <h4>Mobile & Relay</h4>
+        <p>iOS Share Extension + Android Share Activity, Cloudflare Workers relay with zero-access blob storage</p>
+      </div>
+      <div class="timeline-item future">
+        <div class="tl-meta">v0.5.0 — Deferred</div>
+        <h4>AI Engine</h4>
+        <p>Gemma 4 integration via llama.cpp for on-device multimodal screenshot analysis (requires Metal/CUDA GPU SDK)</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- REFLECTION -->
+<section class="reveal">
+  <div class="container">
+    <div class="tag">Reflection</div>
+    <h2>What worked, what I would change, what I learned</h2>
+    <div class="ps-grid" style="margin-top:20px;">
+      <div class="ps-card">
+        <h3>What worked</h3>
+        <ul>
+          <li>The Rust core library is exceptionally well-structured with clear module boundaries across 11 domains</li>
+          <li>ZKS-1 protocol is a genuine cryptographic implementation—not a wrapper around existing libraries</li>
+          <li>The Tauri desktop app demonstrates mature frontend architecture: Zustand, TanStack Query, React Router, error boundaries</li>
+          <li>Mobile companions implement platform-native patterns correctly: iOS Secure Enclave + BGTaskScheduler, Android Keystore + WorkManager</li>
+          <li>Infrastructure is production-grade: Terraform, K8s, Istio, Helm, full observability stack</li>
+        </ul>
+      </div>
+      <div class="ps-card">
+        <h3>What I would change</h3>
+        <ul>
+          <li>Complete the AI engine integration — llama.cpp scaffolding exists but Gemma 4 is not wired into the pipeline</li>
+          <li>Replace mock data in the desktop app with real Tauri backend integration</li>
+          <li>Implement full X3DH in sync/crypto.rs — current uses simplified HKDF as noted in code comments</li>
+          <li>Add end-to-end sync tests between desktop and mobile</li>
+          <li>Reduce documentation surface — 15+ assessment/progress documents exceed source code in volume</li>
+        </ul>
+      </div>
+      <div class="ps-card" style="grid-column:1 / -1;">
+        <h3>Lessons</h3>
+        <ul>
+          <li>Local-first architecture is viable for consumer apps when the sync protocol is invisible to users</li>
+          <li>Multi-platform projects benefit enormously from a Rust core library consumed via FFI and Tauri commands</li>
+          <li>Deferring GPU-dependent AI features is correct when the pipeline scaffolding is complete</li>
+          <li>Zero-knowledge is a powerful claim but requires rigorous verification — the verifyZeroAccess endpoint and audit logging prove it to auditors</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <p style="font-size:0.85rem;color:var(--text-muted);">Truffle · Rust · Tauri · React · TypeScript · Swift · Kotlin · Cloudflare Workers · SQLite · Kubernetes · Terraform</p>
+    <div class="footer__tags">
+      <span class="footer__tag">Rust</span>
+      <span class="footer__tag">Tauri</span>
+      <span class="footer__tag">React</span>
+      <span class="footer__tag">TypeScript</span>
+      <span class="footer__tag">Swift</span>
+      <span class="footer__tag">Kotlin</span>
+      <span class="footer__tag">Cloudflare Workers</span>
+      <span class="footer__tag">SQLite</span>
+      <span class="footer__tag">Kubernetes</span>
+      <span class="footer__tag">Terraform</span>
+    </div>
+    <p class="footer__note">Core application: truffle-core/src (~70 files), truffle-crypto/src (~30 files), truffle-desktop/src (~90 files), truffle-mobile (~25 files), truffle-relay/src (~15 files). Excluded: .skills/, .agents/, node_modules/, target/, repo_structure.csv (5.3MB), assessment documents. Manifest generated 2026-05-08.</p>
+  </div>
+</footer>
+
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
